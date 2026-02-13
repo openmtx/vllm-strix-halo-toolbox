@@ -82,14 +82,14 @@ fi
 
 SCRIPT_DIR="$(dirname "$0")"
 
-echo "Creating distrobox toolbox '${CONTAINER_NAME}'..."
-distrobox create --pull --image "${BASE_IMAGE}" --name "${CONTAINER_NAME}" \
+echo "Creating distrobox toolbox '${CONTAINER_NAME}' using docker..."
+distrobox create --pull --engine docker --image "${BASE_IMAGE}" --name "${CONTAINER_NAME}" \
   --additional-flags "--privileged --cap-add=SYS_PTRACE \
                       --security-opt seccomp=unconfined \
                       --device=/dev/kfd --device=/dev/dri \
                       --group-add video --ipc=host"
 
 echo "Creating ${WORK_DIR} directory inside toolbox..."
-distrobox enter "${CONTAINER_NAME}" -- mkdir -p "${WORK_DIR}"
+distrobox enter "${CONTAINER_NAME}" -- bash -c "mkdir -p ${WORK_DIR} && chown $(id -u):$(id -g) ${WORK_DIR}"
 
 echo "[00] Provisioning complete. Use 'distrobox enter ${CONTAINER_NAME}' to access the toolbox."
