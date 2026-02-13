@@ -35,7 +35,9 @@ WORKDIR /workspace
 RUN git clone --depth 1 --branch ${VLLM_BRANCH} https://github.com/vllm-project/vllm.git .
 
 # Build dependencies
-RUN pip install --no-cache-dir build ninja cmake pybind11 "setuptools-scm>=8" grpcio-tools==1.78.0 wheel
+RUN pip install --no-cache-dir \
+    build wheel ninja cmake pybind11 amd_aiter \
+    "setuptools-scm>=8" grpcio-tools==1.78.0
 
 # Force pip to use base image's PyTorch (ROCm 7.2 compatible)
 ENV PIP_EXTRA_INDEX_URL=""
@@ -55,15 +57,16 @@ LABEL stage="runtime" \
 
 WORKDIR /workspace
 
-# Install vLLM wheel
+# Install vLLM wheel 
 COPY --from=builder /workspace/dist/*.whl /tmp/
 RUN python3 -m pip install /tmp/*.whl --no-build-isolation \
-    --extra-index-url https://download.pytorch.org && \
-    rm -f /tmp/*.whl
+    --extra-index-url https://download.pytorch.org \
+ && rm -f /tmp/*.whl
 
 # Install amdsmi from ROCm distribution
 # Required for vLLM to detect AMD GPUs - without it, device detection fails
-RUN python3 -m pip install /opt/rocm/share/amd_smi
+RUN python3 -m pip install /opt/rocm/share/amd_smi \
+ && python3 -m pip install amd_aiter
 
 EXPOSE 8080
 
