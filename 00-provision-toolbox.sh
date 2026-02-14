@@ -13,10 +13,10 @@ if [ -f "$(dirname "$0")/.toolbox.env" ]; then
 fi
 
 # Default BASE_IMAGE if not set in .toolbox.env
-BASE_IMAGE="${BASE_IMAGE:-docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1}"
+BASE_IMAGE="${BASE_IMAGE:-docker.io/ubuntu:24.04}"
 
 WORK_DIR="${WORK_DIR:-/workspace}"
-CONTAINER_NAME_DEFAULT="${TOOLBOX_NAME:-vllm-toolbox}"
+CONTAINER_NAME_DEFAULT="${TOOLBOX_NAME:-restart}"
 FORCE=0
 
 usage() {

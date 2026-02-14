@@ -39,7 +39,7 @@ echo "Upgrading pip, wheel, and setuptools..."
 pip install --upgrade pip wheel setuptools
 
 echo "[02a] Installing AMD nightly ROCm packages (prerelease)..."
-pip install --pre --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
+pip install --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
 
 echo "[02b] Installing AMD nightly PyTorch packages (prerelease)..."
 pip install --pre --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision

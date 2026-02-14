@@ -23,10 +23,10 @@ fi
 
 # Create workspace and venv directories with correct ownership
 echo "[01] Creating directories..."
-mkdir -p "${WORK_DIR}" "${VENV_DIR}"
+${SUDO} mkdir -p "${WORK_DIR}" "${VENV_DIR}"
 # Skip chown in Docker (running as root), but use in distrobox (needs sudo)
 if [ -n "${SUDO}" ]; then
-    ${SUDO} chown -R "${USER}:${USER}" "${WORK_DIR}" "${VENV_DIR}"
+    ${SUDO} chown -R "$(id -u):$(id -g)" "${WORK_DIR}" "${VENV_DIR}"
     echo "  ✓ Created ${WORK_DIR} (ownership set)"
 else
     echo "  ✓ Created ${WORK_DIR} (Docker, no ownership needed)"
@@ -57,7 +57,8 @@ ${SUDO} apt-get install -y \
     libffi-dev \
     software-properties-common \
     google-perftools \
-    libgoogle-perftools-dev
+    libgoogle-perftools-dev \
+    libgfortran5
 
 # Verify installations
 echo "Verifying installations..."
@@ -72,8 +73,12 @@ echo ""
 echo "Configuring TCMalloc system-wide..."
 TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4"
 if [ -f "$TCMALLOC_PATH" ]; then
-    echo "$TCMALLOC_PATH" | ${SUDO} tee /etc/ld.so.preload > /dev/null
-    echo "  ✓ TCMalloc configured in /etc/ld.so.preload"
+    if [ -f "/etc/ld.so.preload" ] && grep -q "^$TCMALLOC_PATH$" /etc/ld.so.preload; then
+        echo "  ✓ TCMalloc already configured in /etc/ld.so.preload"
+    else
+        echo "$TCMALLOC_PATH" | ${SUDO} tee /etc/ld.so.preload > /dev/null
+        echo "  ✓ TCMalloc configured in /etc/ld.so.preload"
+    fi
 else
     echo "  Warning: TCMalloc library not found at expected location"
 fi
