@@ -93,6 +93,7 @@ docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-builder \
 - Runs scripts 01-04 sequentially
 - Produces both vLLM and AITER wheels
 - All scripts execute with correct paths (`/workspace`, `/opt/venv`)
+- Skips GPU verification (CPU-only builder, no GPU needed for wheel building)
 
 **Advantages:**
 - No GPU required (builder is CPU-only)
@@ -266,12 +267,21 @@ For compatibility with tools expecting ROCm at `/opt/rocm`:
 
 ### GPU Not Detected
 
+**Docker Builder:** This is expected and harmless - the Docker builder is CPU-only and doesn't need GPU access to build wheels.
+
+**Distrobox:** If GPU isn't detected:
 ```bash
 # Check ROCm
 rocminfo | grep gfx
 
 # Check PyTorch
 python -c "import torch; print(torch.cuda.is_available())"
+```
+
+**Skip verification:** To skip GPU checks (e.g., for CPU-only builds):
+```bash
+# For individual script
+SKIP_VERIFICATION=true ./02-install-rocm.sh
 ```
 
 ### Memory Corruption Errors

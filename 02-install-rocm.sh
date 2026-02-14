@@ -4,6 +4,9 @@ set -euo pipefail
 # 02-install-rocm.sh
 # Create virtual environment and install AMD nightly ROCm and PyTorch
 # Run inside the distrobox: ./02-install-rocm.sh
+#
+# Environment Variables:
+#   SKIP_VERIFICATION=true  - Skip GPU verification tests (useful for CPU-only builds)
 
 # Source environment if available
 if [ -f "$(dirname "$0")/.toolbox.env" ]; then
@@ -15,6 +18,7 @@ WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-${WORK_DIR}/venv}"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx1151/}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
+SKIP_VERIFICATION="${SKIP_VERIFICATION:-false}"
 
 echo "[02] Setting up Python virtual environment and installing AMD nightly packages..."
 echo "  ROCm Index: ${ROCM_INDEX_URL}"
@@ -67,11 +71,52 @@ echo "  Testing ROCm SDK..."
 rocm-sdk test || echo "  WARNING: rocm-sdk test had issues, but continuing..."
 
 echo "  Checking GPU with rocminfo..."
-rocminfo | grep -E "(Name:|gfx)" | head -20 || echo "  WARNING: rocminfo not available"
+if [ "${SKIP_VERIFICATION}" = "true" ]; then
+    echo "  SKIPPED: GPU verification (--no-verification flag set)"
+else
+    rocminfo | grep -E "(Name:|gfx)" | head -20 || echo "  WARNING: rocminfo not available"
+fi
 
 echo "[02e] Verifying PyTorch installation..."
 echo "  Installed versions:"
 echo "    $(pip freeze | grep -E '^(rocm|torch)')"
+
+if [ "${SKIP_VERIFICATION}" = "true" ]; then
+    echo "  SKIPPED: PyTorch GPU verification (--no-verification flag set)"
+else
+    python3 << 'PYTHON_EOF'
+import torch
+import sys
+
+print(f"  PyTorch version: {torch.__version__}")
+print(f"  CUDA available: {torch.cuda.is_available()}")
+
+# Check for ROCm backend (may not be available in all PyTorch builds)
+try:
+    rocm_available = torch.backends.rocm.is_available()
+    print(f"  ROCm backend available: {rocm_available}")
+except AttributeError:
+    print(f"  ROCm backend: Not exposed via torch.backends (this is normal for some builds)")
+    rocm_available = torch.cuda.is_available()  # ROCm uses CUDA interface
+
+if torch.cuda.is_available():
+    print(f"  CUDA/ROCm version: {torch.version.cuda}")
+    print(f"  Device count: {torch.cuda.device_count()}")
+    for i in range(torch.cuda.device_count()):
+        print(f"  Device {i}: {torch.cuda.get_device_name(i)}")
+    print(f"  Current device: {torch.cuda.current_device()}")
+else
+    print("  WARNING: No GPU detected!")
+    sys.exit(1)
+
+print("\n  PyTorch GPU test: Creating a tensor on GPU...")
+x = torch.randn(3, 3).cuda()
+print(f"  Tensor device: {x.device}")
+print(f"  Tensor shape: {x.shape}")
+print(f"  Tensor sum: {x.sum().item()}")
+print("  SUCCESS: PyTorch can use the GPU!")
+PYTHON_EOF
+fi
 
 python3 << 'PYTHON_EOF'
 import torch
@@ -94,9 +139,10 @@ if torch.cuda.is_available():
     for i in range(torch.cuda.device_count()):
         print(f"  Device {i}: {torch.cuda.get_device_name(i)}")
     print(f"  Current device: {torch.cuda.current_device()}")
-else:
-    print("  WARNING: No GPU detected!")
-    sys.exit(1)
+else
+    print("  WARNING: No GPU detected (expected in CPU-only Docker builder)")
+    # Don't exit - this is a CPU-only builder for wheel generation
+    # GPU is not needed to build wheels, only for runtime
 
 print("\n  PyTorch GPU test: Creating a tensor on GPU...")
 x = torch.randn(3, 3).cuda()
