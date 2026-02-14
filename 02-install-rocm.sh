@@ -118,41 +118,6 @@ print("  SUCCESS: PyTorch can use to GPU!")
 ENDPYTHON
 fi
 
-python3 << 'PYTHON_EOF'
-import torch
-import sys
-
-print(f"  PyTorch version: {torch.__version__}")
-print(f"  CUDA available: {torch.cuda.is_available()}")
-
-# Check for ROCm backend (may not be available in all PyTorch builds)
-try:
-    rocm_available = torch.backends.rocm.is_available()
-    print(f"  ROCm backend available: {rocm_available}")
-except AttributeError:
-    print(f"  ROCm backend: Not exposed via torch.backends (this is normal for some builds)")
-    rocm_available = torch.cuda.is_available()  # ROCm uses CUDA interface
-
-if torch.cuda.is_available():
-    print(f"  CUDA/ROCm version: {torch.version.cuda}")
-    print(f"  Device count: {torch.cuda.device_count()}")
-    for i in range(torch.cuda.device_count()):
-        print(f"  Device {i}: {torch.cuda.get_device_name(i)}")
-    print(f"  Current device: {torch.cuda.current_device()}")
-else
-    print("  WARNING: No GPU detected (expected in CPU-only Docker builder)")
-    # Don't exit - this is a CPU-only builder for wheel generation
-    # GPU is not needed to build wheels, only for runtime
-
-print("\n  PyTorch GPU test: Creating a tensor on GPU...")
-x = torch.randn(3, 3).cuda()
-print(f"  Tensor device: {x.device}")
-print(f"  Tensor shape: {x.shape}")
-print(f"  Tensor sum: {x.sum().item()}")
-print("  SUCCESS: PyTorch can use the GPU!")
-ENDPYTHON
-fi
-
 echo ""
 echo "[02f] Initializing ROCm SDK devel contents..."
 echo "  This extracts development tools like hipconfig, hipcc, etc."
