@@ -84,38 +84,38 @@ echo "    $(pip freeze | grep -E '^(rocm|torch)')"
 if [ "${SKIP_VERIFICATION}" = "true" ]; then
     echo "  SKIPPED: PyTorch GPU verification (--no-verification flag set)"
 else
-    python3 << 'PYTHON_EOF'
+    python3 << 'ENDPYTHON'
 import torch
 import sys
 
-print(f"  PyTorch version: {torch.__version__}")
-print(f"  CUDA available: {torch.cuda.is_available()}")
+print("  PyTorch version: " + str(torch.__version__))
+print("  CUDA available: " + str(torch.cuda.is_available()))
 
 # Check for ROCm backend (may not be available in all PyTorch builds)
 try:
     rocm_available = torch.backends.rocm.is_available()
-    print(f"  ROCm backend available: {rocm_available}")
+    print("  ROCm backend available: " + str(rocm_available))
 except AttributeError:
-    print(f"  ROCm backend: Not exposed via torch.backends (this is normal for some builds)")
+    print("  ROCm backend: Not exposed via torch.backends (this is normal for some builds)")
     rocm_available = torch.cuda.is_available()  # ROCm uses CUDA interface
 
 if torch.cuda.is_available():
-    print(f"  CUDA/ROCm version: {torch.version.cuda}")
-    print(f"  Device count: {torch.cuda.device_count()}")
+    print("  CUDA/ROCm version: " + torch.version.cuda)
+    print("  Device count: " + str(torch.cuda.device_count()))
     for i in range(torch.cuda.device_count()):
-        print(f"  Device {i}: {torch.cuda.get_device_name(i)}")
-    print(f"  Current device: {torch.cuda.current_device()}")
-else
+        print("  Device " + str(i) + ": " + torch.cuda.get_device_name(i))
+    print("  Current device: " + str(torch.cuda.current_device()))
+else:
     print("  WARNING: No GPU detected!")
     sys.exit(1)
 
 print("\n  PyTorch GPU test: Creating a tensor on GPU...")
 x = torch.randn(3, 3).cuda()
-print(f"  Tensor device: {x.device}")
-print(f"  Tensor shape: {x.shape}")
-print(f"  Tensor sum: {x.sum().item()}")
-print("  SUCCESS: PyTorch can use the GPU!")
-PYTHON_EOF
+print("  Tensor device: " + str(x.device))
+print("  Tensor shape: " + str(x.shape))
+print("  Tensor sum: " + str(x.sum().item()))
+print("  SUCCESS: PyTorch can use to GPU!")
+ENDPYTHON
 fi
 
 python3 << 'PYTHON_EOF'
