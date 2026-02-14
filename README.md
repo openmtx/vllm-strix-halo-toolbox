@@ -100,6 +100,35 @@ docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-builder \
 - Reproducible builds
 - Easy CI/CD integration
 
+### Main Dockerfile (Multi-stage Build & Runtime)
+
+The main `Dockerfile` provides both builder and runtime stages in a single build:
+
+```bash
+# Build runtime image with vLLM and AITER pre-installed
+docker build -t vllm-gfx1151-runtime .
+
+# Run vLLM server
+docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
+    vllm serve Qwen/Qwen2.5-0.5B-Instruct \
+    --host 0.0.0.0 \
+    --port 8080 \
+    --enforce-eager
+```
+
+**What this does:**
+- **Stage 1 (Builder):** Same as Dockerfile.builder - builds both wheels
+- **Stage 2 (Runtime):** Minimal Ubuntu 24.04 with:
+  - Python 3.12 venv at `/opt/venv`
+  - vLLM and AITER wheels installed
+  - TCMalloc preloading configured
+  - PATH set to `/opt/venv/bin`
+
+**Advantages:**
+- Single build command produces runnable image
+- Runtime image is minimal (no build tools)
+- Ready-to-run with GPU access required
+
 ## Scripts
 
 ### 00-provision-toolbox.sh

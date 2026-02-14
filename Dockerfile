@@ -1,77 +1,104 @@
 # syntax=docker/dockerfile:1
 
-# ROCm-enabled PyTorch base image with Ubuntu 24.04
-ARG BASE_IMAGE=docker.io/rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.9.1
+# =============================================================================
+# Stage 1: Builder - Build vLLM and AITER wheels
+# =============================================================================
 
-# =============================================================================
-# Stage 1: Base - ROCm/PyTorch environment
-# =============================================================================
-FROM ${BASE_IMAGE} AS base
+FROM ubuntu:24.04 AS builder
 
 LABEL maintainer="ken@epenguin.com" \
-      description="vLLM built with ROCm support for AMD GPUs" \
-      base.image="${BASE_IMAGE}"
+      description="vLLM and AITER wheels builder for AMD gfx1151"
 
-# Configure ROCm paths and hardware-specific environment variables
-ENV ROCM_PATH=/opt/rocm \
-    PATH=/opt/venv/bin:/opt/rocm/bin:$PATH \
-    LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH \
-    # gfx1151 = Strix Halo (AMD Ryzen AI 300 series)
-    PYTORCH_ROCM_ARCH=gfx1151 \
-    HSA_OVERRIDE_GFX_VERSION=11.5.1 \
-    VLLM_TARGET_DEVICE=rocm
-
-# =============================================================================
-# Stage 2: Builder - Compile vLLM wheel
-# =============================================================================
-FROM base AS builder
-
-ARG VLLM_BRANCH=main
-ARG MAX_JOBS
-ENV MAX_JOBS=${MAX_JOBS:-$(nproc)}
+# Install basic dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    python3.12 \
+    python3.12-venv \
+    wget \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
-RUN git clone --depth 1 --branch ${VLLM_BRANCH} https://github.com/vllm-project/vllm.git .
+# Copy entire project to workspace
+COPY . /workspace/
 
-# Build dependencies
-RUN pip install --no-cache-dir \
-    build wheel ninja cmake pybind11 amd_aiter \
-    "setuptools-scm>=8" grpcio-tools==1.78.0
+# Make scripts executable
+RUN chmod +x /workspace/*.sh
 
-# Force pip to use base image's PyTorch (ROCm 7.2 compatible)
-ENV PIP_EXTRA_INDEX_URL=""
+# Run build scripts sequentially
+# Note: Running as root, so SUDO="" (no sudo needed)
+ENV SUDO="" SKIP_VERIFICATION=true
 
-RUN if [ -f "use_existing_torch.py" ]; then python3 use_existing_torch.py; fi
+# 01: Install system tools and create venv
+RUN /workspace/01-install-tools.sh
 
-# Build vLLM wheel
-RUN python3 -m build --wheel --no-isolation
+# 02: Install ROCm and PyTorch (nightly packages)
+RUN /workspace/02-install-rocm.sh
+
+# 03: Build AITER wheel (optional, but vLLM won't use on gfx1151)
+RUN /workspace/03-build-aiter.sh
+
+# 04: Build vLLM wheel
+RUN /workspace/04-build-vllm.sh
+
+# Set output path for easy access
+ENV WHEELS_DIR=/workspace/wheels
 
 # =============================================================================
-# Stage 3: Runtime - Production Image
+# Stage 2: Runtime - Create minimal runtime environment with vLLM and AITER
 # =============================================================================
-FROM base AS runtime
 
-LABEL stage="runtime" \
-      description="vLLM runtime with ROCm support"
+FROM ubuntu:24.04 AS runtime
+
+LABEL maintainer="ken@epenguin.com" \
+      description="vLLM runtime for AMD gfx1151"
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    curl \
+    ca-certificates \
+    google-perftools \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 
-# Install vLLM wheel 
-COPY --from=builder /workspace/dist/*.whl /tmp/
-RUN python3 -m pip install /tmp/*.whl --no-build-isolation \
-    --extra-index-url https://download.pytorch.org \
- && rm -f /tmp/*.whl
+# Copy wheels from builder
+COPY --from=builder /workspace/wheels/*.whl /tmp/
 
-# Install amdsmi from ROCm distribution
-# Required for vLLM to detect AMD GPUs - without it, device detection fails
-RUN python3 -m pip install /opt/rocm/share/amd_smi \
- && python3 -m pip install amd_aiter
+# Create virtual environment and install wheels
+RUN python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/pip install --no-cache-dir /tmp/*.whl && \
+    rm /tmp/*.whl
 
+# Configure TCMalloc system-wide
+RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
+    if [ -f "$TCMALLOC_PATH" ]; then \
+        echo "$TCMALLOC_PATH" | tee /etc/ld.so.preload > /dev/null && \
+        echo "TCMalloc configured: $(cat /etc/ld.so.preload)"; \
+    else \
+        echo "WARNING: TCMalloc not found"; \
+    fi
+
+# Set environment for vLLM
+ENV PATH="/opt/venv/bin:${PATH}" \
+    PYTHONPATH="/opt/venv/lib/python3.12/site-packages" \
+    HSA_OVERRIDE_GFX_VERSION="11.5.1" \
+    VLLM_TARGET_DEVICE="rocm"
+
+# Verify installation
+RUN /opt/venv/bin/python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" && \
+    pip list | grep -E "(vllm|amd-aiter)"
+
+# Expose default port for vLLM API server
 EXPOSE 8080
 
-# Start vLLM OpenAI API server
-# Model: Qwen2.5-0.5B-Instruct (replace as needed)
-# --enforce-eager: disable CUDA graphs (ROCm compatibility)
-CMD ["vllm", "serve", "Qwen/Qwen2.5-0.5B-Instruct", "--host", "0.0.0.0", "--port", "8080", "--enforce-eager"]
-
+# Default command - show help or start server
+CMD ["/opt/venv/bin/vllm", "--help"]
