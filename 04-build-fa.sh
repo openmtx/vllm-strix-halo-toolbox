@@ -12,17 +12,18 @@ fi
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
 FA_DIR="${WORK_DIR}/flash-attention"
-WHEEL_DIR="${WORK_DIR}/wheels"
 GPU_TARGET="${GPU_TARGET:-gfx1151}"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx1151/}"
+NOGPU="${NOGPU:-false}"
 
 echo "[04] Building Flash Attention..."
 echo "  GPU Target: ${GPU_TARGET}"
 echo "  Flash Attention Dir: ${FA_DIR}"
 echo ""
 
-# Activate virtual environment
+# Activate virtual environment (includes PATH and LD_LIBRARY_PATH from /etc/profile.d/rocm-sdk.sh)
 source "${VENV_DIR}/bin/activate"
+source /etc/profile.d/rocm-sdk.sh
 
 # Clone Flash Attention repository
 if [ -d "${FA_DIR}" ]; then
@@ -54,38 +55,17 @@ export PATH="${VENV_DIR}/bin:${PATH}"
 echo "  ROCM_HOME=${ROCM_HOME}"
 echo "  PATH includes ${VENV_DIR}/bin"
 
-# Create wheels directory
-mkdir -p "${WHEEL_DIR}"
-
-# Build Flash Attention wheel
-# Note: Using --no-build-isolation to use existing environment with rocm_sdk installed
-echo "Building Flash Attention wheel (using no-build-isolation)..."
-pip wheel . --no-deps --no-build-isolation -w "${WHEEL_DIR}"
-
-# Find the built wheel
-FA_WHEEL=$(ls -t "${WHEEL_DIR}"/flash_attn-*.whl 2>/dev/null | head -1)
-if [ -z "${FA_WHEEL}" ]; then
-    echo "ERROR: Failed to find built Flash Attention wheel"
-    exit 1
-fi
+# Build and install Flash Attention directly
+echo "Building and installing Flash Attention (using no-build-isolation)..."
+pip install . --no-deps --no-build-isolation
 
 echo ""
-echo "  ✓ Flash Attention wheel built: ${FA_WHEEL}"
-
-# Install Flash Attention from wheel
-echo ""
-echo "Installing Flash Attention from wheel (with --no-deps to avoid CUDA torch)..."
-pip install --no-deps "${FA_WHEEL}"
-
-echo ""
-echo "[04] Flash Attention build complete!"
+echo "[04] Flash Attention build and installation complete!"
 echo ""
 echo "Verifying installation..."
-source "${VENV_DIR}/bin/activate"
 if pip show flash-attn >/dev/null 2>&1; then
     echo "  ✅ Flash Attention: Successfully installed"
     pip show flash-attn | grep "^Name:" && pip show flash-attn | grep "^Version:"
-    echo "  📦 Wheel: ${FA_WHEEL}"
 else
     echo "  ❌ Flash Attention: Installation failed"
     exit 1

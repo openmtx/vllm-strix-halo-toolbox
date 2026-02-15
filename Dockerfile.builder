@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Stage 1: Builder - Build AITER, Flash Attention, and vLLM wheels
+# Stage 1: dev-base - Install build tools and ROCm SDK
 # =============================================================================
 
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:24.04 AS dev-base
 
 LABEL maintainer="ken@epenguin.com" \
-      description="CPU-only builder for ROCm gfx1151 wheels (AITER, Flash Attention, vLLM)"
+      description="Base dev environment with ROCm SDK for gfx1151"
 
 # Set consistent environment variables
 ENV WORK_DIR=/workspace \
@@ -43,68 +43,75 @@ COPY . /workspace/
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
 
-# Run build scripts sequentially
+# Run build tools installation
 RUN echo "==========================================" \
- && echo "Building ROCm gfx1151 Wheels" \
+ && echo "Installing build tools..." \
  && echo "==========================================" \
- && echo "" \
- && echo "[1/4] Installing build tools..." \
- && /workspace/01-install-tools.sh \
- && echo "" \
- && echo "[2/5] Installing ROCm and PyTorch..." \
- && /workspace/02-install-rocm.sh \
- && echo "" \
- && echo "[3/5] Building Flash Attention wheel..." \
- && /workspace/04-build-fa.sh || echo "WARNING: Flash Attention build failed" \
- && echo "" \
- && echo "[4/5] Building AITER wheel..." \
- && /workspace/03-build-aiter.sh || echo "WARNING: AITER build failed" \
- && echo "" \
- && echo "[5/5] Building vLLM wheel..." \
- && /workspace/05-build-vllm.sh || echo "WARNING: vLLM build failed" \
- && echo "" \
+ && /workspace/01-install-tools.sh
+
+# Run ROCm SDK installation
+RUN echo "==========================================" \
+ && echo "Installing ROCm and PyTorch..." \
  && echo "==========================================" \
- && echo "Build Complete!" \
- && echo "==========================================" \
- && echo "" \
- && echo "Built wheels:" \
- && ls -lh ${WORK_DIR}/wheels/ || echo "No wheels built"
+ && /workspace/02-install-rocm.sh
 
 # =============================================================================
-# Stage 2: Output - Copy only wheels to minimal image
+# Stage 2: build-aiter - Build AITER
 # =============================================================================
 
-FROM ubuntu:24.04 AS output
+FROM dev-base AS build-aiter
 
-WORKDIR /output
-COPY --from=builder /workspace/wheels /wheels
+LABEL description="Build stage for AITER"
 
-LABEL description="Contains built wheels for ROCm gfx1151"
+RUN echo "==========================================" \
+ && echo "Building AITER..." \
+ && echo "==========================================" \
+ && /workspace/03-build-aiter.sh || echo "WARNING: AITER build failed"
+
+# =============================================================================
+# Stage 3: build-fa - Build Flash Attention
+# =============================================================================
+
+FROM build-aiter AS build-fa
+
+LABEL description="Build stage for Flash Attention"
+
+RUN echo "==========================================" \
+ && echo "Building Flash Attention..." \
+ && echo "==========================================" \
+ && /workspace/04-build-fa.sh || echo "WARNING: Flash Attention build failed"
+
+# =============================================================================
+# Stage 4: build-vllm - Build vLLM
+# =============================================================================
+
+FROM build-fa AS build-vllm
+
+LABEL description="Build stage for vLLM"
+
+RUN echo "==========================================" \
+ && echo "Building vLLM..." \
+ && echo "==========================================" \
+ && /workspace/05-build-vllm.sh || echo "WARNING: vLLM build failed"
 
 # =============================================================================
 # Usage
 # =============================================================================
 #
-# Build:
-#   docker build -f Dockerfile.builder -t vllm-gfx1151-wheels .
+# Build complete image:
+#   docker build -f Dockerfile.builder --target build-vllm -t vllm-gfx1151-builder .
 #
-# Extract wheels:
-#   docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-wheels
+# Build intermediate stages:
+#   docker build -f Dockerfile.builder --target dev-base -t dev-base .
+#   docker build -f Dockerfile.builder --target build-aiter -t build-aiter .
+#   docker build -f Dockerfile.builder --target build-fa -t build-fa .
 #
-# Or run container and copy wheels:
-#   docker run --rm -v $(pwd)/wheels:/output vllm-gfx1151-wheels \
-#     bash -c "cp /wheels/*.whl /output/"
-#
- # Built wheels (in ./wheels/):
- #   - amd_aiter-*.whl (29 MB)
- #   - flash_attn-*.whl (443 KB)
- #   - vllm-*.whl (52 MB)
-#
-# Install in ROCm environment:
-#   pip install --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ /path/to/wheels/*.whl
+# Extract venv from builder:
+#   docker run --rm -v $(pwd)/venv:/output vllm-gfx1151-builder \
+#     bash -c "cp -r /opt/venv /output/"
 #
 # Note: CPU-only builder
 #   - NOGPU=true flag skips all GPU verification
-#   - Wheels can be built without a GPU
-#   - Wheels will work when installed on a system with gfx1151 GPU
+#   - Packages can be built without a GPU
+#   - Packages will work when used on a system with gfx1151 GPU
 # =============================================================================

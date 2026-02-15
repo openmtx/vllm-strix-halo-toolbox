@@ -75,19 +75,28 @@ echo "  ✓ amd_smi package installed"
 
 echo "[02f] Adding ROCm SDK to system PATH..."
 ROCM_BIN_DIR="$(rocm-sdk path --bin)"
+ROCM_ROOT=$(rocm-sdk path --root)
 cat <<EOF | ${SUDO} tee /etc/profile.d/rocm-sdk.sh > /dev/null
 export PATH="\${PATH}:${ROCM_BIN_DIR}"
+export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:\${LD_LIBRARY_PATH:-}"
 EOF
 echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_BIN_DIR}"
+echo "  ✓ ROCm SDK library path added to LD_LIBRARY_PATH"
+
+echo "[02g] Setting up current shell environment..."
+export PATH="${PATH}:${ROCM_BIN_DIR}"
+export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+echo "  ✓ Current shell PATH updated"
+echo "  ✓ Current shell LD_LIBRARY_PATH updated"
 
 if [ "${SKIP_GPU_CHECK}" = "true" ]; then
     echo "  SKIPPED: amdsmi tests (--no-verification or --nogpu flag set)"
 else
-    echo "[02g] Running amdsmi tests..."
+    echo "[02h] Running amdsmi tests..."
     python3 -c "import amdsmi; amdsmi.amdsmi_init(); print('  ✓ amdsmi initialization successful')" || echo "  WARNING: amdsmi test had issues, but continuing..."
 fi
 
-echo "[02h] Checking version consistency..."
+echo "[02i] Checking version consistency..."
 echo "  ROCm version: $(pip show rocm | grep Version | cut -d' ' -f2)"
 echo "  PyTorch ROCm build: $(pip show torch | grep Version | cut -d' ' -f2)"
 echo ""
@@ -110,7 +119,7 @@ if [ -n "$TORCH_ROCM_VER" ] && [ -n "$ROCM_VER" ]; then
     fi
 fi
 
-echo "[02i] Verifying ROCm installation..."
+echo "[02j] Verifying ROCm installation..."
 echo "  ROCm packages:"
 pip freeze | grep -i rocm || echo "    (No rocm packages found in pip list)"
 
@@ -124,7 +133,7 @@ else
     rocminfo | grep -E "(Name:|gfx)" | head -20 || echo "  WARNING: rocminfo not available"
 fi
 
-echo "[02j] Verifying PyTorch installation..."
+echo "[02k] Verifying PyTorch installation..."
 echo "  Installed versions:"
 echo "    $(pip freeze | grep -E '^(rocm|torch)')"
 
@@ -166,7 +175,7 @@ ENDPYTHON
 fi
 
 echo ""
-echo "[02k] Initializing ROCm SDK devel contents..."
+echo "[02l] Initializing ROCm SDK devel contents..."
 echo "  This extracts development tools like hipconfig, hipcc, etc."
 rocm-sdk init
 echo "  ✓ ROCm SDK initialized"

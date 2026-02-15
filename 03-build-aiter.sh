@@ -9,6 +9,7 @@ fi
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
 AITER_DIR="${WORK_DIR}/aiter"
+NOGPU="${NOGPU:-false}"
 
 # Set default GPU target
 GPU_TARGET="${GPU_TARGET:-gfx1151}"
@@ -16,8 +17,9 @@ GPU_TARGET="${GPU_TARGET:-gfx1151}"
 echo "[03] Building AMD AITER..."
 echo "GPU Target: ${GPU_TARGET}"
 
-# Source environment
+# Source environment (includes PATH and LD_LIBRARY_PATH from /etc/profile.d/rocm-sdk.sh)
 source "${VENV_DIR:-/opt/venv}/bin/activate"
+source /etc/profile.d/rocm-sdk.sh
 
 # Explicitly set GPU architecture for AITER JIT compilation
 export GPU_ARCHS="${GPU_TARGET}"
@@ -44,21 +46,9 @@ else
     cd "${AITER_DIR}"
 fi
 
-echo "Building AITER (includes JIT source files for gfx1151)..."
+echo "Building and installing AITER..."
 echo ""
-echo "Step 1: Build in develop mode (includes source files)..."
-python setup.py develop --no-deps || echo "AITER develop mode build failed - vLLM will work without it"
+pip install . --no-deps || echo "AITER installation failed - vLLM will work without it"
 
 echo ""
-echo "Step 2: Create wheel from development build..."
-python setup.py bdist_wheel || echo "AITER wheel creation failed - vLLM will work without it"
-
-# Copy wheel to wheels directory
-echo ""
-echo "Copying wheel to workspace wheels directory..."
-WHEEL_DIR="${WORK_DIR}/wheels"
-mkdir -p "${WHEEL_DIR}"
-cp -v dist/amd_aiter-*.whl "${WHEEL_DIR}/" 2>/dev/null || echo "Failed to copy AITER wheel"
-
-echo ""
-echo "[03] AITER build complete!"
+echo "[03] AITER build and installation complete!"
