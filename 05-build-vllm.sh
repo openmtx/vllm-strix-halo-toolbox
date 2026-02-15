@@ -81,6 +81,18 @@ export MAX_JOBS=$(nproc)
 # Set CMAKE_PREFIX_PATH to help CMake find torch
 TORCH_DIR=$(python3 -c "import torch; import os; print(os.path.dirname(torch.__file__))")
 export CMAKE_PREFIX_PATH="${TORCH_DIR}"
+
+# Also set Torch_DIR explicitly for CMake to find TorchConfig.cmake
+TORCH_SHARE_DIR=$(python3 -c "import torch, os; print(os.path.join(os.path.dirname(torch.__file__), 'share', 'cmake', 'Torch'))")
+if [ -d "${TORCH_SHARE_DIR}" ]; then
+    export Torch_DIR="${TORCH_SHARE_DIR}"
+    echo "  Torch_DIR=${Torch_DIR}"
+else
+    # Fallback to parent directory
+    export Torch_DIR="${TORCH_DIR}"
+    echo "  Torch_DIR=${Torch_DIR} (fallback)"
+fi
+
 echo "  CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
 
 # Important: Set compiler flags to find device libraries
