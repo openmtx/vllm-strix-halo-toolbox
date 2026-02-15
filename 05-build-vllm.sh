@@ -51,15 +51,7 @@ else
     git reset --hard origin/main || true
 fi
 
-# Step 2: Configure to use existing PyTorch
-echo "[05b] Configuring vLLM to use existing PyTorch..."
-if [ -f "use_existing_torch.py" ]; then
-    python use_existing_torch.py
-else
-    echo "  Warning: use_existing_torch.py not found"
-fi
-
-# Step 3: Set build environment
+# Step 2: Set build environment
 echo "[05c] Setting build environment for gfx1151..."
 export PYTORCH_ROCM_ARCH=gfx1151
 export HSA_OVERRIDE_GFX_VERSION=11.5.1
