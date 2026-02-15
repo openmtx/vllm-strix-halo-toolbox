@@ -79,17 +79,12 @@ echo "  HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION}"
 echo "  MAX_JOBS=${MAX_JOBS}"
 
 # Step 4: Install build dependencies
-echo "[05d] Installing build dependencies..."
-pip install --no-cache-dir ninja cmake wheel build pybind11 "setuptools-scm>=8" grpcio-tools
+echo "[05d] Installing build dependencies and vLLM requirements..."
+pip install --no-cache-dir ninja cmake wheel build pybind11 "setuptools-scm>=8" grpcio-tools einops pandas psutil
 
-# Step 5: Build vLLM wheel
-echo "[05e] Building vLLM wheel..."
-python -m pip build --wheel --no-isolation
-
-# Step 6: Install vLLM from wheel
-echo "[05f] Installing vLLM from wheel..."
-WHEEL=$(ls -t dist/vllm-*.whl | head -1)
-pip install --no-deps "${WHEEL}"
+# Step 5: Build and install vLLM
+echo "[05e] Building and installing vLLM..."
+pip install . --no-build-isolation --no-deps
 
 echo ""
 echo "[05] vLLM build and installation complete!"
