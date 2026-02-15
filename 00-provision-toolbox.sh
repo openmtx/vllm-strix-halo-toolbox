@@ -27,7 +27,7 @@ Options:
   -f, --force    Destroy existing toolbox with the same name and recreate
   -h, --help     Show this help and exit
 
-If no container-name is provided, the script uses TOOLBOX_NAME from .toolbox.env or 'vllm-toolbox'.
+If no container-name is provided, the script uses TOOLBOX_NAME from .toolbox.env or 'restart'.
 USAGE
 }
 

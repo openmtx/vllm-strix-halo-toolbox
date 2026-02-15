@@ -1,16 +1,11 @@
 services:
   # --- BUILDER & RUNTIME ---
-  vllm-strix:
+  vllm:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: runtime
-      args:
-        VLLM_BRANCH: main
-        # Crank it up to 32 to maximize your RDNA 3.5 silicon build speed
-        MAX_JOBS: 32 
-    image: vllm-rocm-gfx1151:latest
-    container_name: vllm-strix-halo
+      dockerfile: Dockerfile.runtime
+    image: vllm-rocm-dev-gfx1151:latest
+    container_name: vllm-strix-halo-dev
     privileged: true
     cap_add:
       - SYS_PTRACE
@@ -22,7 +17,7 @@ services:
       - /dev/dri:/dev/dri
     group_add:
       - video
-      - render
+      #- render
     ports:
       - "8080:8080"
     environment:
@@ -31,6 +26,7 @@ services:
       - PYTORCH_ROCM_ARCH=gfx1151      # Match the Agent 2 name
       - VLLM_USE_TRITON_FLASH_ATTN=0
       - VLLM_LOGGING_LEVEL=DEBUG # Keep this for now to see details if it fails
+      - OMP_NUM_THREADS=32            # Number of CPU cores for OpenMP parallelization
     volumes:
       # Keep your models persistent on your host machine
       - ./cache/huggingface:/root/.cache/huggingface

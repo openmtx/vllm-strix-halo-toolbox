@@ -15,10 +15,25 @@ if [ -f "$(dirname "$0")/.toolbox.env" ]; then
 fi
 
 WORK_DIR="${WORK_DIR:-/workspace}"
-VENV_DIR="${VENV_DIR:-${WORK_DIR}/venv}"
+VENV_DIR="${VENV_DIR:-/opt/venv}"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx1151/}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 SKIP_VERIFICATION="${SKIP_VERIFICATION:-false}"
+NOGPU="${NOGPU:-false}"
+
+# Set SUDO based on whether running as root (Docker) or non-root (distrobox)
+if [ "$(id -u)" = "0" ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
+# Check if we should skip GPU verification (CPU-only build)
+if [ "${NOGPU}" = "true" ] || [ "${SKIP_VERIFICATION}" = "true" ]; then
+    SKIP_GPU_CHECK="true"
+else
+    SKIP_GPU_CHECK="false"
+fi
 
 echo "[02] Setting up Python virtual environment and installing AMD nightly packages..."
 echo "  ROCm Index: ${ROCM_INDEX_URL}"
@@ -44,9 +59,41 @@ pip install --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
 echo "[02b] Installing AMD nightly PyTorch packages (prerelease)..."
 pip install --pre --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision
 
-echo "[02c] Checking version consistency..."
+echo "[02c] Initializing ROCm SDK..."
+rocm-sdk init
+echo "  ✓ ROCm SDK initialized"
+
+echo "[02d] Installing amd_smi package from SDK..."
+cd "${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_core/share/amd_smi" && pip install .
+
+echo "[02e] Making ROCm SDK .so files runtime loadable..."
+ROCM_LIB_DIR="$(dirname "$(rocm-sdk path --bin)")/lib"
+echo "${ROCM_LIB_DIR}" | ${SUDO} tee /etc/ld.so.conf.d/rocm-sdk.conf > /dev/null
+${SUDO} ldconfig
+echo "  ✓ ROCm SDK library path configured: ${ROCM_LIB_DIR}"
+echo "  ✓ amd_smi package installed"
+
+echo "[02f] Adding ROCm SDK to system PATH..."
+ROCM_BIN_DIR="$(rocm-sdk path --bin)"
+cat <<EOF | ${SUDO} tee /etc/profile.d/rocm-sdk.sh > /dev/null
+export PATH="\${PATH}:${ROCM_BIN_DIR}"
+EOF
+echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_BIN_DIR}"
+
+if [ "${SKIP_GPU_CHECK}" = "true" ]; then
+    echo "  SKIPPED: amdsmi tests (--no-verification or --nogpu flag set)"
+else
+    echo "[02g] Running amdsmi tests..."
+    python3 -c "import amdsmi; amdsmi.amdsmi_init(); print('  ✓ amdsmi initialization successful')" || echo "  WARNING: amdsmi test had issues, but continuing..."
+fi
+
+echo "[02h] Checking version consistency..."
 echo "  ROCm version: $(pip show rocm | grep Version | cut -d' ' -f2)"
 echo "  PyTorch ROCm build: $(pip show torch | grep Version | cut -d' ' -f2)"
+echo ""
+echo "  ⚠️  IMPORTANT: When installing any packages that depend on PyTorch,"
+echo "     always use: pip install --index-url ${ROCM_INDEX_URL}"
+echo "     Otherwise, pip will pull CUDA versions from PyPI."
 
 # Extract ROCm version from torch package
 TORCH_ROCM_VER=$(pip show torch | grep Version | grep -oP 'rocm\K[0-9.]+' | head -1)
@@ -63,7 +110,7 @@ if [ -n "$TORCH_ROCM_VER" ] && [ -n "$ROCM_VER" ]; then
     fi
 fi
 
-echo "[02d] Verifying ROCm installation..."
+echo "[02i] Verifying ROCm installation..."
 echo "  ROCm packages:"
 pip freeze | grep -i rocm || echo "    (No rocm packages found in pip list)"
 
@@ -71,18 +118,18 @@ echo "  Testing ROCm SDK..."
 rocm-sdk test || echo "  WARNING: rocm-sdk test had issues, but continuing..."
 
 echo "  Checking GPU with rocminfo..."
-if [ "${SKIP_VERIFICATION}" = "true" ]; then
-    echo "  SKIPPED: GPU verification (--no-verification flag set)"
+if [ "${SKIP_GPU_CHECK}" = "true" ]; then
+    echo "  SKIPPED: GPU verification (--no-verification or --nogpu flag set)"
 else
     rocminfo | grep -E "(Name:|gfx)" | head -20 || echo "  WARNING: rocminfo not available"
 fi
 
-echo "[02e] Verifying PyTorch installation..."
+echo "[02j] Verifying PyTorch installation..."
 echo "  Installed versions:"
 echo "    $(pip freeze | grep -E '^(rocm|torch)')"
 
-if [ "${SKIP_VERIFICATION}" = "true" ]; then
-    echo "  SKIPPED: PyTorch GPU verification (--no-verification flag set)"
+if [ "${SKIP_GPU_CHECK}" = "true" ]; then
+    echo "  SKIPPED: PyTorch GPU verification (--no-verification or --nogpu flag set)"
 else
     python3 << 'ENDPYTHON'
 import torch
@@ -119,7 +166,7 @@ ENDPYTHON
 fi
 
 echo ""
-echo "[02f] Initializing ROCm SDK devel contents..."
+echo "[02k] Initializing ROCm SDK devel contents..."
 echo "  This extracts development tools like hipconfig, hipcc, etc."
 rocm-sdk init
 echo "  ✓ ROCm SDK initialized"
