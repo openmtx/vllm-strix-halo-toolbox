@@ -82,9 +82,14 @@ echo "  MAX_JOBS=${MAX_JOBS}"
 echo "[05d] Installing build dependencies..."
 pip install --no-cache-dir ninja cmake wheel build pybind11 "setuptools-scm>=8" grpcio-tools
 
-# Step 5: Build and install vLLM
-echo "[05e] Building and installing vLLM..."
-pip install -e . --no-build-isolation --no-deps
+# Step 5: Build vLLM wheel
+echo "[05e] Building vLLM wheel..."
+python -m pip build --wheel --no-isolation
+
+# Step 6: Install vLLM from wheel
+echo "[05f] Installing vLLM from wheel..."
+WHEEL=$(ls -t dist/vllm-*.whl | head -1)
+pip install --no-deps "${WHEEL}"
 
 echo ""
 echo "[05] vLLM build and installation complete!"
