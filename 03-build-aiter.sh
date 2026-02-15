@@ -21,6 +21,12 @@ echo "GPU Target: ${GPU_TARGET}"
 source "${VENV_DIR:-/opt/venv}/bin/activate"
 source /etc/profile.d/rocm-sdk.sh
 
+# Explicitly set PATH and LD_LIBRARY_PATH
+ROCM_BIN_DIR=$(rocm-sdk path --bin)
+ROCM_ROOT=$(rocm-sdk path --root)
+export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+
 # Explicitly set GPU architecture for AITER JIT compilation
 export GPU_ARCHS="${GPU_TARGET}"
 echo "  Setting AITER GPU architecture..."
@@ -30,10 +36,10 @@ export AITER_REBUILD=1
 # Set ROCm paths
 export ROCM_HOME="${VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel"
 export ROCM_PATH="${ROCM_HOME}"
-export PATH="${VENV_DIR}/bin:${PATH}"
 
 echo "  ROCM_HOME=${ROCM_HOME}"
-echo "  PATH includes ${VENV_DIR}/bin"
+echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
+echo "  LD_LIBRARY_PATH includes ${ROCM_ROOT}/lib"
 
 # Clone AITER repository
 if [ -d "${AITER_DIR}" ]; then
@@ -48,7 +54,7 @@ fi
 
 echo "Building and installing AITER..."
 echo ""
-pip install . --no-deps || echo "AITER installation failed - vLLM will work without it"
+pip install . --no-deps --no-build-isolation || echo "AITER installation failed - vLLM will work without it"
 
 echo ""
 echo "[03] AITER build and installation complete!"

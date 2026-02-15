@@ -21,9 +21,14 @@ echo "  GPU Target: ${GPU_TARGET}"
 echo "  Flash Attention Dir: ${FA_DIR}"
 echo ""
 
-# Activate virtual environment (includes PATH and LD_LIBRARY_PATH from /etc/profile.d/rocm-sdk.sh)
+# Activate virtual environment
 source "${VENV_DIR}/bin/activate"
-source /etc/profile.d/rocm-sdk.sh
+
+# Explicitly set PATH and LD_LIBRARY_PATH
+ROCM_BIN_DIR=$(rocm-sdk path --bin)
+ROCM_ROOT=$(rocm-sdk path --root)
+export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
 
 # Clone Flash Attention repository
 if [ -d "${FA_DIR}" ]; then
@@ -51,9 +56,7 @@ echo "  FLASH_ATTENTION_TRITON_AMD_ENABLE=${FLASH_ATTENTION_TRITON_AMD_ENABLE}"
 echo "Setting ROCm paths..."
 export ROCM_HOME="${VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel"
 export ROCM_PATH="${ROCM_HOME}"
-export PATH="${VENV_DIR}/bin:${PATH}"
 echo "  ROCM_HOME=${ROCM_HOME}"
-echo "  PATH includes ${VENV_DIR}/bin"
 
 # Build and install Flash Attention directly
 echo "Building and installing Flash Attention (using no-build-isolation)..."

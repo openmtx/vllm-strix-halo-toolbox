@@ -25,21 +25,24 @@ fi
 
 echo "[05] Building vLLM from source for ROCm gfx1151..."
 
-# Activate virtual environment (includes PATH and LD_LIBRARY_PATH from /etc/profile.d/rocm-sdk.sh)
+# Activate virtual environment
 source "${VENV_DIR}/bin/activate"
-source /etc/profile.d/rocm-sdk.sh
+
+# Explicitly set PATH and LD_LIBRARY_PATH
+ROCM_BIN_DIR=$(rocm-sdk path --bin)
+ROCM_ROOT=$(rocm-sdk path --root)
+export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
 
 # Get ROCm SDK paths
-ROCM_ROOT=$(python3 -m rocm_sdk path --root)
-ROCM_BIN=$(python3 -m rocm_sdk path --bin)
-
-# Set device library path
 export HIP_DEVICE_LIB_PATH="${ROCM_ROOT}/lib/llvm/amdgcn/bitcode"
 export ROCM_PATH="${ROCM_ROOT}"
 export ROCM_HOME="${ROCM_ROOT}"
 
 echo "  ROCm Root: ${ROCM_ROOT}"
 echo "  Device Lib Path: ${HIP_DEVICE_LIB_PATH}"
+echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
+echo "  LD_LIBRARY_PATH includes ${ROCM_ROOT}/lib"
 
 # Ensure /opt/rocm symlink exists for compatibility
 if [ ! -L "/opt/rocm" ]; then

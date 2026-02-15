@@ -84,10 +84,10 @@ echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_BIN_DIR}"
 echo "  ✓ ROCm SDK library path added to LD_LIBRARY_PATH"
 
 echo "[02g] Setting up current shell environment..."
-export PATH="${PATH}:${ROCM_BIN_DIR}"
+export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
 export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
-echo "  ✓ Current shell PATH updated"
-echo "  ✓ Current shell LD_LIBRARY_PATH updated"
+echo "  ✓ Current shell PATH updated to include ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
+echo "  ✓ Current shell LD_LIBRARY_PATH updated to ${ROCM_ROOT}/lib"
 
 if [ "${SKIP_GPU_CHECK}" = "true" ]; then
     echo "  SKIPPED: amdsmi tests (--no-verification or --nogpu flag set)"
