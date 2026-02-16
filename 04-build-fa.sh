@@ -11,6 +11,7 @@ fi
 
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
+ROCM_HOME="${ROCM_HOME:-/opt/rocm}"
 FA_DIR="${WORK_DIR}/flash-attention"
 GPU_TARGET="${GPU_TARGET:-gfx1151}"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx1151/}"
@@ -19,16 +20,15 @@ NOGPU="${NOGPU:-false}"
 echo "[04] Building Flash Attention..."
 echo "  GPU Target: ${GPU_TARGET}"
 echo "  Flash Attention Dir: ${FA_DIR}"
+echo "  NOGPU: ${NOGPU}"
 echo ""
 
 # Activate virtual environment
 source "${VENV_DIR}/bin/activate"
 
 # Explicitly set PATH and LD_LIBRARY_PATH
-ROCM_BIN_DIR=$(rocm-sdk path --bin)
-ROCM_ROOT=$(rocm-sdk path --root)
-export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
-export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
 
 # Clone Flash Attention repository
 if [ -d "${FA_DIR}" ]; then
@@ -54,9 +54,10 @@ echo "  FLASH_ATTENTION_TRITON_AMD_ENABLE=${FLASH_ATTENTION_TRITON_AMD_ENABLE}"
 
 # Set ROCm paths for Flash Attention
 echo "Setting ROCm paths..."
-export ROCM_HOME="${VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel"
 export ROCM_PATH="${ROCM_HOME}"
+export CMAKE_PREFIX_PATH="${ROCM_HOME}/lib/cmake:${CMAKE_PREFIX_PATH:-}"
 echo "  ROCM_HOME=${ROCM_HOME}"
+echo "  CMAKE_PREFIX_PATH includes ${ROCM_HOME}/lib/cmake"
 
 # Build and install Flash Attention directly
 echo "Building and installing Flash Attention (using no-build-isolation)..."

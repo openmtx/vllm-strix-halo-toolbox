@@ -8,6 +8,7 @@ fi
 
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
+ROCM_HOME="${ROCM_HOME:-/opt/rocm}"
 AITER_DIR="${WORK_DIR}/aiter"
 NOGPU="${NOGPU:-false}"
 
@@ -16,16 +17,14 @@ GPU_TARGET="${GPU_TARGET:-gfx1151}"
 
 echo "[03] Building AMD AITER..."
 echo "GPU Target: ${GPU_TARGET}"
+echo "NOGPU: ${NOGPU}"
 
-# Source environment (includes PATH and LD_LIBRARY_PATH from /etc/profile.d/rocm-sdk.sh)
-source "${VENV_DIR:-/opt/venv}/bin/activate"
-source /etc/profile.d/rocm-sdk.sh
+# Activate virtual environment
+source "${VENV_DIR}/bin/activate"
 
 # Explicitly set PATH and LD_LIBRARY_PATH
-ROCM_BIN_DIR=$(rocm-sdk path --bin)
-ROCM_ROOT=$(rocm-sdk path --root)
-export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
-export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
 
 # Explicitly set GPU architecture for AITER JIT compilation
 export GPU_ARCHS="${GPU_TARGET}"
@@ -34,12 +33,13 @@ echo "  GPU_ARCHS=${GPU_ARCHS}"
 export AITER_REBUILD=1
 
 # Set ROCm paths
-export ROCM_HOME="${VENV_DIR}/lib/python3.12/site-packages/_rocm_sdk_devel"
 export ROCM_PATH="${ROCM_HOME}"
+export CMAKE_PREFIX_PATH="${ROCM_HOME}/lib/cmake:${CMAKE_PREFIX_PATH:-}"
 
 echo "  ROCM_HOME=${ROCM_HOME}"
-echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
-echo "  LD_LIBRARY_PATH includes ${ROCM_ROOT}/lib"
+echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_HOME}/bin"
+echo "  LD_LIBRARY_PATH includes ${ROCM_HOME}/lib"
+echo "  CMAKE_PREFIX_PATH includes ${ROCM_HOME}/lib/cmake"
 
 # Clone AITER repository
 if [ -d "${AITER_DIR}" ]; then

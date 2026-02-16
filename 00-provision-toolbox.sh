@@ -83,10 +83,17 @@ fi
 SCRIPT_DIR="$(dirname "$0")"
 
 echo "Creating distrobox toolbox '${CONTAINER_NAME}'..."
-distrobox create --pull --image "${BASE_IMAGE}" --name "${CONTAINER_NAME}" \
-  --additional-flags "--privileged --cap-add=SYS_PTRACE \
-                      --security-opt seccomp=unconfined \
-                      --device=/dev/kfd --device=/dev/dri \
-                      --group-add video --ipc=host"
+
+if [ "${NOGPU:-false}" = "true" ]; then
+  echo "NOGPU=true: Provisioning without GPU devices"
+  distrobox create --pull --image "${BASE_IMAGE}" --name "${CONTAINER_NAME}"
+else
+  echo "Provisioning with AMD GPU access"
+  distrobox create --pull --image "${BASE_IMAGE}" --name "${CONTAINER_NAME}" \
+    --additional-flags "--privileged --cap-add=SYS_PTRACE \
+                        --security-opt seccomp=unconfined \
+                        --group-add video --ipc=host"
+fi
+
 
 echo "[00] Provisioning complete. Use 'distrobox enter ${CONTAINER_NAME}' to access the toolbox."

@@ -14,28 +14,27 @@ fi
 WORK_DIR="${WORK_DIR:-/workspace}"
 VLLM_DIR="${WORK_DIR}/vllm"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
+ROCM_HOME="${ROCM_HOME:-/opt/rocm}"
 NOGPU="${NOGPU:-false}"
 
 echo "[05] Building vLLM from source for ROCm gfx1151..."
+echo "  NOGPU: ${NOGPU}"
 
 # Activate virtual environment
 source "${VENV_DIR}/bin/activate"
 
 # Explicitly set PATH and LD_LIBRARY_PATH
-ROCM_BIN_DIR=$(rocm-sdk path --bin)
-ROCM_ROOT=$(rocm-sdk path --root)
-export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
-export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
+export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
 
 # Get ROCm SDK paths
-export HIP_DEVICE_LIB_PATH="${ROCM_ROOT}/lib/llvm/amdgcn/bitcode"
-export ROCM_PATH="${ROCM_ROOT}"
-export ROCM_HOME="${ROCM_ROOT}"
+export ROCM_PATH="${ROCM_HOME}"
+export HIP_DEVICE_LIB_PATH="${ROCM_HOME}/lib/llvm/amdgcn/bitcode"
 
-echo "  ROCm Root: ${ROCM_ROOT}"
+echo "  ROCm Root: ${ROCM_HOME}"
 echo "  Device Lib Path: ${HIP_DEVICE_LIB_PATH}"
-echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
-echo "  LD_LIBRARY_PATH includes ${ROCM_ROOT}/lib"
+echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_HOME}/bin"
+echo "  LD_LIBRARY_PATH includes ${ROCM_HOME}/lib"
 
 # Step 1: Clone vLLM
 echo "[05a] Checking vLLM repository..."
@@ -61,7 +60,7 @@ export PIP_EXTRA_INDEX_URL=""
 
 # Set CMAKE_PREFIX_PATH and Torch_DIR to help CMake find torch
 TORCH_DIR=$(python3 -c "import torch; import os; print(os.path.dirname(torch.__file__))")
-export CMAKE_PREFIX_PATH="${TORCH_DIR}"
+export CMAKE_PREFIX_PATH="${TORCH_DIR}:${ROCM_HOME}/lib/cmake"
 
 # Also set Torch_DIR explicitly for CMake to find TorchConfig.cmake
 TORCH_SHARE_DIR=$(python3 -c "import torch, os; print(os.path.join(os.path.dirname(torch.__file__), 'share', 'cmake', 'Torch'))")

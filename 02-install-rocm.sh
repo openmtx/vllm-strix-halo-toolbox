@@ -17,6 +17,7 @@ fi
 WORK_DIR="${WORK_DIR:-/workspace}"
 VENV_DIR="${VENV_DIR:-/opt/venv}"
 ROCM_INDEX_URL="${ROCM_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx1151/}"
+ROCM_HOME="${ROCM_HOME:-/opt/rocm}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 SKIP_VERIFICATION="${SKIP_VERIFICATION:-false}"
 NOGPU="${NOGPU:-false}"
@@ -66,28 +67,31 @@ echo "  ✓ ROCm SDK initialized"
 echo "[02d] Installing amd_smi package from SDK..."
 cd "${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_core/share/amd_smi" && pip install .
 
-echo "[02e] Making ROCm SDK .so files runtime loadable..."
-ROCM_LIB_DIR="$(dirname "$(rocm-sdk path --bin)")/lib"
-echo "${ROCM_LIB_DIR}" | ${SUDO} tee /etc/ld.so.conf.d/rocm-sdk.conf > /dev/null
+echo "[02e] Adding ROCm SDK to system PATH and creating symlinks..."
+echo "[02e-1] Making ROCm SDK .so files runtime loadable..."
+echo "${ROCM_HOME}/lib" | ${SUDO} tee /etc/ld.so.conf.d/rocm-sdk.conf > /dev/null
 ${SUDO} ldconfig
-echo "  ✓ ROCm SDK library path configured: ${ROCM_LIB_DIR}"
-echo "  ✓ amd_smi package installed"
+echo "  ✓ ROCm SDK library path configured: ${ROCM_HOME}/lib"
 
-echo "[02f] Adding ROCm SDK to system PATH..."
-ROCM_BIN_DIR="$(rocm-sdk path --bin)"
-ROCM_ROOT=$(rocm-sdk path --root)
+echo "[02e-2] Adding ROCm SDK to system PATH..."
 cat <<EOF | ${SUDO} tee /etc/profile.d/rocm-sdk.sh > /dev/null
-export PATH="\${PATH}:${ROCM_BIN_DIR}"
-export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:\${LD_LIBRARY_PATH:-}"
+export PATH="\${PATH}:${ROCM_HOME}/bin"
+export LD_LIBRARY_PATH="${ROCM_HOME}/lib:\${LD_LIBRARY_PATH:-}"
 EOF
-echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_BIN_DIR}"
+echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_HOME}/bin"
 echo "  ✓ ROCm SDK library path added to LD_LIBRARY_PATH"
 
+echo "[02g-1] Adding virtual environment to system PATH..."
+cat <<EOF | ${SUDO} tee /etc/profile.d/opt-venv.sh > /dev/null
+export PATH="${VENV_DIR}/bin:\${PATH}"
+EOF
+echo "  ✓ Virtual environment bin directory added to PATH: ${VENV_DIR}/bin"
+
 echo "[02g] Setting up current shell environment..."
-export PATH="${VENV_DIR}/bin:${ROCM_BIN_DIR}:${PATH}"
-export LD_LIBRARY_PATH="${ROCM_ROOT}/lib:${LD_LIBRARY_PATH:-}"
-echo "  ✓ Current shell PATH updated to include ${VENV_DIR}/bin and ${ROCM_BIN_DIR}"
-echo "  ✓ Current shell LD_LIBRARY_PATH updated to ${ROCM_ROOT}/lib"
+export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
+echo "  ✓ Current shell PATH updated to include ${VENV_DIR}/bin and ${ROCM_HOME}/bin"
+echo "  ✓ Current shell LD_LIBRARY_PATH updated to ${ROCM_HOME}/lib"
 
 if [ "${SKIP_GPU_CHECK}" = "true" ]; then
     echo "  SKIPPED: amdsmi tests (--no-verification or --nogpu flag set)"

@@ -41,7 +41,7 @@ ${SUDO} apt-get update
 
 # Install build essentials and development tools
 echo "Installing build essentials..."
-${SUDO} apt-get install -y \
+${SUDO} apt-get install --no-install-recommends -y \
     build-essential \
     git \
     curl \
