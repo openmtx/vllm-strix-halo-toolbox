@@ -81,6 +81,16 @@ EOF
 echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_HOME}/bin"
 echo "  ✓ ROCm SDK library path added to LD_LIBRARY_PATH"
 
+echo "[02g-0] Fixing missing ROCm library symlinks..."
+# Create missing symlinks for libraries that CMake expects but ROCm SDK doesn't provide
+LIB_SOURCE_DIR="${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_libraries_gfx1151/lib"
+if [ -d "${ROCM_HOME}/lib" ] && [ -d "${LIB_SOURCE_DIR}" ]; then
+    # Fix libhipfftw.so.0 and libhipfftw.so.0.1 symlinks
+    ${SUDO} ln -sf "${LIB_SOURCE_DIR}/libhipfftw.so" "${ROCM_HOME}/lib/libhipfftw.so.0" 2>/dev/null || true
+    ${SUDO} ln -sf "${LIB_SOURCE_DIR}/libhipfftw.so" "${ROCM_HOME}/lib/libhipfftw.so.0.1" 2>/dev/null || true
+    echo "  ✓ Fixed missing ROCm library symlinks in ${ROCM_HOME}/lib"
+fi
+
 echo "[02g-1] Adding virtual environment to system PATH..."
 cat <<EOF | ${SUDO} tee /etc/profile.d/opt-venv.sh > /dev/null
 export PATH="${VENV_DIR}/bin:\${PATH}"
