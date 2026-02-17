@@ -45,6 +45,7 @@ ${SUDO} apt-get install --no-install-recommends -y \
     build-essential \
     git \
     curl \
+    ca-certificates \
     wget \
     cmake \
     ninja-build \
@@ -58,7 +59,9 @@ ${SUDO} apt-get install --no-install-recommends -y \
     software-properties-common \
     google-perftools \
     libgoogle-perftools-dev \
-    libgfortran5
+    libgfortran5 \
+    libatomic1 \
+    libgomp1
 
 # Verify installations
 echo "Verifying installations..."
