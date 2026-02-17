@@ -1,5 +1,7 @@
 # vLLM for AMD Strix Halo (gfx1151)
 
+[![Build and Push Docker Image](https://github.com/openmtx/vllm-strix-halo-toolbox/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/openmtx/vllm-strix-halo-toolbox/actions/workflows/docker-build-push.yml)
+
 Docker-based build system for running vLLM on AMD Strix Halo GPUs using nightly ROCm builds.
 
 ## Overview
