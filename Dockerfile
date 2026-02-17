@@ -9,7 +9,7 @@ FROM ubuntu:24.04 AS dev-base
 LABEL maintainer="ken@epenguin.com" \
       description="vLLM builder for AMD gfx1151 - builds AITER, Flash Attention, vLLM"
 
-# Set consistent environment variables
+# Set environment variables
 ENV WORK_DIR=/workspace \
     VENV_DIR=/opt/venv \
     ROCM_HOME=/opt/rocm \
