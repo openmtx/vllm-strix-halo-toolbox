@@ -1,5 +1,7 @@
 # Environment configuration
 .toolbox.env
+.toolbox.env.sample
+.distroboxrc
 
 # Cache directories
 cache/*

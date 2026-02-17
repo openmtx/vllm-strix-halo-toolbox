@@ -64,6 +64,38 @@ echo "[02c] Initializing ROCm SDK..."
 rocm-sdk init
 echo "  ✓ ROCm SDK initialized"
 
+echo "[02c-1] Synchronizing ROCm SDK component versions..."
+
+# Extract the canonical version string from rocm package
+VERSION=$(pip show rocm | grep -i "Version:" | awk '{print $2}')
+
+if [ -z "$VERSION" ]; then
+    echo "  ❌ ERROR: Failed to extract version from 'pip show rocm'"
+    echo "  This indicates a critical installation problem. Exiting."
+    exit 1
+fi
+
+echo "  ✅ Found Version: $VERSION"
+echo "  🚀 Force-reinstalling SDK components to match..."
+
+# Force reinstall all three SDK components with exact same version
+# Using --no-deps prevents pip from changing Torch dependencies
+pip install --force-reinstall --no-deps --index-url "${ROCM_INDEX_URL}" \
+    "rocm-sdk-core==$VERSION" \
+    "rocm-sdk-devel==$VERSION" \
+    "rocm-sdk-libraries-gfx1151==$VERSION"
+
+if [ $? -ne 0 ]; then
+    echo "  ❌ ERROR: Failed to synchronize SDK component versions"
+    exit 1
+fi
+
+echo "  ✅ SDK component versions synchronized"
+
+echo "[02c-2] Creating /opt/rocm symlink..."
+${SUDO} ln -sf "${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_devel" "${ROCM_HOME}"
+echo "  ✓ Created symlink: ${ROCM_HOME} → _rocm_sdk_devel"
+
 echo "[02d] Installing amd_smi package from SDK..."
 cd "${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_core/share/amd_smi" && pip install .
 
@@ -80,16 +112,6 @@ export LD_LIBRARY_PATH="${ROCM_HOME}/lib:\${LD_LIBRARY_PATH:-}"
 EOF
 echo "  ✓ ROCm SDK bin directory added to PATH: ${ROCM_HOME}/bin"
 echo "  ✓ ROCm SDK library path added to LD_LIBRARY_PATH"
-
-echo "[02g-0] Fixing missing ROCm library symlinks..."
-# Create missing symlinks for libraries that CMake expects but ROCm SDK doesn't provide
-LIB_SOURCE_DIR="${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_libraries_gfx1151/lib"
-if [ -d "${ROCM_HOME}/lib" ] && [ -d "${LIB_SOURCE_DIR}" ]; then
-    # Fix libhipfftw.so.0 and libhipfftw.so.0.1 symlinks
-    ${SUDO} ln -sf "${LIB_SOURCE_DIR}/libhipfftw.so" "${ROCM_HOME}/lib/libhipfftw.so.0" 2>/dev/null || true
-    ${SUDO} ln -sf "${LIB_SOURCE_DIR}/libhipfftw.so" "${ROCM_HOME}/lib/libhipfftw.so.0.1" 2>/dev/null || true
-    echo "  ✓ Fixed missing ROCm library symlinks in ${ROCM_HOME}/lib"
-fi
 
 echo "[02g-1] Adding virtual environment to system PATH..."
 cat <<EOF | ${SUDO} tee /etc/profile.d/opt-venv.sh > /dev/null

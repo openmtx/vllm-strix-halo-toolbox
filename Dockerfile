@@ -157,5 +157,10 @@ RUN ln -sf /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm-sdk.conf \
   && ldconfig
 
+# Configure TCMalloc to prevent memory corruption with pip-installed ROCm
+RUN echo "Configuring TCMalloc system-wide..." \
+  && echo "/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" > /etc/ld.so.preload \
+  && echo "  ✓ TCMalloc configured in /etc/ld.so.preload"
+
 # Default command
 CMD ["/bin/bash"]
