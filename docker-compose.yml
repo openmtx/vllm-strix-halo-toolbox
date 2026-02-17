@@ -1,11 +1,9 @@
+version: '3.8'
+
 services:
-  # --- BUILDER & RUNTIME ---
+  # --- RUNTIME (uses pre-built image) ---
   vllm-gfx1151-runtime:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: release
-    image: vllm-gfx1151-runtime:latest
+    image: vllm-gfx1151-dev:latest
     container_name: vllm-strix-halo-runtime
     privileged: true
     cap_add:
@@ -43,11 +41,7 @@ services:
 
   # Alternative: CPU-only mode (for testing without GPU)
   vllm-gfx1151-cpu:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: release
-    image: vllm-gfx1151-runtime:latest
+    image: vllm-gfx1151-dev:latest
     container_name: vllm-strix-halo-cpu
     volumes:
       - ./models:/workspace/models:ro
@@ -55,4 +49,3 @@ services:
       - "8080:8080"
     command: >
       bash -c "source /opt/venv/bin/activate && python -c 'import vllm; print(f\"vLLM {vllm.__version__}\")'"
-
