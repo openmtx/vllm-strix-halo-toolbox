@@ -19,6 +19,9 @@ ENV WORK_DIR=/workspace \
     GPU_TARGET=gfx1151 \
     DEBIAN_FRONTEND=noninteractive
 
+# Force cache bust
+RUN echo "Cache bust: $(date)"
+
 # Install system dependencies for build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -52,17 +55,11 @@ RUN mkdir -p ${WORK_DIR} ${VENV_DIR}
 # Set working directory
 WORKDIR ${WORK_DIR}
 
-# Copy build scripts
+# Copy build scripts and symlink fix script
 COPY . /workspace/
 
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
-
-# Run build tools installation
-RUN echo "==========================================" \
-  && echo "[Stage 1/4] Installing build tools..." \
-  && echo "==========================================" \
-  && /workspace/01-install-tools.sh
 
 # Run ROCm SDK installation
 RUN echo "==========================================" \
@@ -144,7 +141,7 @@ ENV VENV_DIR=/opt/venv \
     VLLM_TARGET_DEVICE=rocm \
     FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE \
     PATH="/opt/venv/bin:/opt/rocm/bin:${PATH}" \
-    LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
+    LD_LIBRARY_PATH="/opt/rocm/lib"
 
 # Copy venv from build stage
 COPY --from=build-vllm /opt/venv /opt/venv
@@ -157,13 +154,7 @@ RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm-sdk.conf \
   && ldconfig
 
 # Fix missing gfx1151 library symlinks
-RUN if [ -d "/opt/venv/lib/python3.12/site-packages/_rocm_sdk_libraries_gfx1151/lib" ]; then \
-    ln -sf ../../_rocm_sdk_libraries_gfx1151/lib/libhipfftw.so /opt/rocm/lib/libhipfftw.so.0 \
-    && ln -sf ../../_rocm_sdk_libraries_gfx1151/lib/libhipfftw.so /opt/rocm/lib/libhipfftw.so.0.1 \
-    && echo "✓ Fixed missing ROCm library symlinks in /opt/rocm/lib" \
-  else \
-    echo "✗ Warning: _rocm_sdk_libraries_gfx1151 directory not found" \
-  fi
+RUN /workspace/docker-fix-symlinks.sh
 
 # Set working directory for vLLM
 WORKDIR /workspace
