@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
-  # Runtime (uses pre-built image)
-  vllm-gfx1151-runtime:
-    image: vllm-gfx1151-dev:latest
+  vllm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openmtx/vllm-gfx1151-dev:latest
     container_name: vllm-strix-halo-runtime
     privileged: true
     cap_add:

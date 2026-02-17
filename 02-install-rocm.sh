@@ -54,15 +54,17 @@ source "${VENV_DIR}/bin/activate"
 echo "Upgrading pip, wheel, and setuptools..."
 pip install --upgrade pip wheel setuptools
 
-echo "[02a] Installing AMD nightly ROCm packages (prerelease)..."
-pip install --index-url "${ROCM_INDEX_URL}" "rocm[libraries,devel]"
+echo "[02a-0] Installing CMake 3.26.4 and Ninja via pip..."
+pip install cmake==3.26.4 ninja
+echo "  ✓ Installed CMake 3.26.4 (avoids HIP detection bug in 3.28)"
+echo "  ✓ Installed Ninja"
+
+echo "[02a] Installing AMD nightly ROCm base package..."
+pip install --index-url "${ROCM_INDEX_URL}" "rocm"
 
 echo "[02b] Installing AMD nightly PyTorch packages (prerelease)..."
+# This will install a specific rocm[libraries] version as a dependency
 pip install --pre --index-url "${ROCM_INDEX_URL}" torch torchaudio torchvision
-
-echo "[02c] Initializing ROCm SDK..."
-rocm-sdk init
-echo "  ✓ ROCm SDK initialized"
 
 echo "[02c-1] Synchronizing ROCm SDK component versions..."
 
@@ -76,21 +78,25 @@ if [ -z "$VERSION" ]; then
 fi
 
 echo "  ✅ Found Version: $VERSION"
-echo "  🚀 Force-reinstalling SDK components to match..."
+echo "  🚀 Installing SDK components to match..."
 
-# Force reinstall all three SDK components with exact same version
+# Install all three SDK components with exact same version
 # Using --no-deps prevents pip from changing Torch dependencies
-pip install --force-reinstall --no-deps --index-url "${ROCM_INDEX_URL}" \
+pip install --no-deps --index-url "${ROCM_INDEX_URL}" \
     "rocm-sdk-core==$VERSION" \
     "rocm-sdk-devel==$VERSION" \
     "rocm-sdk-libraries-gfx1151==$VERSION"
 
 if [ $? -ne 0 ]; then
-    echo "  ❌ ERROR: Failed to synchronize SDK component versions"
+    echo "  ❌ ERROR: Failed to install SDK components with matching version"
     exit 1
 fi
 
 echo "  ✅ SDK component versions synchronized"
+
+echo "[02c] Initializing ROCm SDK..."
+rocm-sdk init
+echo "  ✓ ROCm SDK initialized"
 
 echo "[02c-2] Creating /opt/rocm symlink..."
 ${SUDO} ln -sf "${VENV_DIR}/lib/python${PYTHON_VERSION}/site-packages/_rocm_sdk_devel" "${ROCM_HOME}"
@@ -120,9 +126,9 @@ EOF
 echo "  ✓ Virtual environment bin directory added to PATH: ${VENV_DIR}/bin"
 
 echo "[02g] Setting up current shell environment..."
-export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+export PATH="${ROCM_HOME}/bin:${VENV_DIR}/bin:${PATH}"
 export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
-echo "  ✓ Current shell PATH updated to include ${VENV_DIR}/bin and ${ROCM_HOME}/bin"
+echo "  ✓ Current shell PATH updated to include ${ROCM_HOME}/bin and ${VENV_DIR}/bin"
 echo "  ✓ Current shell LD_LIBRARY_PATH updated to ${ROCM_HOME}/lib"
 
 if [ "${SKIP_GPU_CHECK}" = "true" ]; then

@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1
+
+FROM ubuntu:24.04
+
+LABEL description="Base image with ROCm and PyTorch for vLLM builds"
+
+ENV WORK_DIR=/workspace \
+    VENV_DIR=/opt/venv \
+    ROCM_HOME=/opt/rocm \
+    NOGPU=true \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    wget \
+    curl \
+    ca-certificates \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    google-perftools \
+    libgoogle-perftools-dev \
+    libgfortran5 \
+    libatomic1 \
+    libgomp1 \
+    gcc \
+    make \
+    libc6-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p ${WORK_DIR} ${VENV_DIR}
+
+WORKDIR ${WORK_DIR}
+
+COPY 01-install-tools.sh 02-install-rocm.sh /workspace/
+RUN chmod +x /workspace/01-install-tools.sh /workspace/02-install-rocm.sh
+
+RUN echo "Installing system tools..." && /workspace/01-install-tools.sh
+
+RUN echo "Installing ROCm and PyTorch..." && /workspace/02-install-rocm.sh
+
+ENV PATH="/opt/rocm/bin:/opt/venv/bin:${PATH}" \
+    LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
+
+CMD ["/bin/bash"]

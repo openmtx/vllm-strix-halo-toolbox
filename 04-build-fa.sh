@@ -26,9 +26,12 @@ echo ""
 # Activate virtual environment
 source "${VENV_DIR}/bin/activate"
 
-# Explicitly set PATH and LD_LIBRARY_PATH
-export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+# Explicitly set PATH and LD_LIBRARY_PATH - ROCm first, then venv
+export PATH="${ROCM_HOME}/bin:${VENV_DIR}/bin:${PATH}"
 export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
+echo "  ROCm Home: ${ROCM_HOME}"
+echo "  PATH includes ${ROCM_HOME}/bin and ${VENV_DIR}/bin"
+echo "  LD_LIBRARY_PATH includes ${ROCM_HOME}/lib"
 
 # Clone Flash Attention repository
 if [ -d "${FA_DIR}" ]; then
@@ -56,8 +59,10 @@ echo "  FLASH_ATTENTION_TRITON_AMD_ENABLE=${FLASH_ATTENTION_TRITON_AMD_ENABLE}"
 echo "Setting ROCm paths..."
 export ROCM_PATH="${ROCM_HOME}"
 export CMAKE_PREFIX_PATH="${ROCM_HOME}/lib/cmake:${CMAKE_PREFIX_PATH:-}"
+export HIP_PATH="${ROCM_HOME}"
 echo "  ROCM_HOME=${ROCM_HOME}"
 echo "  CMAKE_PREFIX_PATH includes ${ROCM_HOME}/lib/cmake"
+echo "  HIP_PATH=${HIP_PATH}"
 
 # Build and install Flash Attention directly
 echo "Building and installing Flash Attention (using no-build-isolation)..."

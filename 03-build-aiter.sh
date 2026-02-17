@@ -22,8 +22,8 @@ echo "NOGPU: ${NOGPU}"
 # Activate virtual environment
 source "${VENV_DIR}/bin/activate"
 
-# Explicitly set PATH and LD_LIBRARY_PATH
-export PATH="${VENV_DIR}/bin:${ROCM_HOME}/bin:${PATH}"
+# Explicitly set PATH and LD_LIBRARY_PATH - ROCm first, then venv
+export PATH="${ROCM_HOME}/bin:${VENV_DIR}/bin:${PATH}"
 export LD_LIBRARY_PATH="${ROCM_HOME}/lib:${LD_LIBRARY_PATH:-}"
 
 # Explicitly set GPU architecture for AITER JIT compilation
@@ -34,12 +34,14 @@ export AITER_REBUILD=1
 
 # Set ROCm paths
 export ROCM_PATH="${ROCM_HOME}"
+export HIP_PATH="${ROCM_HOME}"
 export CMAKE_PREFIX_PATH="${ROCM_HOME}/lib/cmake:${CMAKE_PREFIX_PATH:-}"
 
 echo "  ROCM_HOME=${ROCM_HOME}"
-echo "  PATH includes ${VENV_DIR}/bin and ${ROCM_HOME}/bin"
+echo "  PATH includes ${ROCM_HOME}/bin and ${VENV_DIR}/bin"
 echo "  LD_LIBRARY_PATH includes ${ROCM_HOME}/lib"
 echo "  CMAKE_PREFIX_PATH includes ${ROCM_HOME}/lib/cmake"
+echo "  HIP_PATH=${HIP_PATH}"
 
 # Clone AITER repository
 if [ -d "${AITER_DIR}" ]; then

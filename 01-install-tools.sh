@@ -47,8 +47,6 @@ ${SUDO} apt-get install --no-install-recommends -y \
     curl \
     ca-certificates \
     wget \
-    cmake \
-    ninja-build \
     python3.12 \
     python3.12-venv \
     python3.12-dev \
@@ -56,7 +54,6 @@ ${SUDO} apt-get install --no-install-recommends -y \
     pkg-config \
     libssl-dev \
     libffi-dev \
-    software-properties-common \
     google-perftools \
     libgoogle-perftools-dev \
     libgfortran5 \
@@ -65,8 +62,6 @@ ${SUDO} apt-get install --no-install-recommends -y \
 
 # Verify installations
 echo "Verifying installations..."
-echo "  CMake: $(cmake --version | head -1)"
-echo "  Ninja: $(ninja --version)"
 echo "  Python3: $(python3 --version)"
 echo "  Git: $(git --version)"
 echo "  TCMalloc: $(dpkg -l | grep google-perftools | head -1 | awk '{print $2 ":" $3}')"

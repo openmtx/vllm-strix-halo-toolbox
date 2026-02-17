@@ -144,7 +144,7 @@ ENV VENV_DIR=/opt/venv \
     HSA_OVERRIDE_GFX_VERSION=11.5.1 \
     VLLM_TARGET_DEVICE=rocm \
     FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE \
-    PATH="/opt/venv/bin:/opt/rocm/bin:${PATH}" \
+    PATH="/opt/rocm/bin:/opt/venv/bin:${PATH}" \
     LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
 # Copy venv from build stage
