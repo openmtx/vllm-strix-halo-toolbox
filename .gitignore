@@ -2,7 +2,9 @@
 .toolbox.env
 
 # Cache directories
-cache/
+cache/*
+!cache/.gitkeep
+!cache/**/.gitkeep
 downloads/
 
 # Python

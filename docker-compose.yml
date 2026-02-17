@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # --- RUNTIME (uses pre-built image) ---
+  # Runtime (uses pre-built image)
   vllm-gfx1151-runtime:
     image: vllm-gfx1151-dev:latest
     container_name: vllm-strix-halo-runtime
@@ -16,18 +16,15 @@ services:
       - /dev/dri:/dev/dri
     group_add:
       - video
-      #- render
     ports:
       - "8080:8080"
     environment:
-      - HSA_OVERRIDE_GFX_VERSION=11.5.1 # Match to ISA in rocminfo
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
       - VLLM_TARGET_DEVICE=rocm
       - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
-      - OMP_NUM_THREADS=32            # Number of CPU cores for OpenMP parallelization
+      - OMP_NUM_THREADS=32
     volumes:
-      # Keep your models persistent on your host machine
       - ./cache/huggingface:/root/.cache/huggingface
-      - ./models:/workspace/models:ro
       - /dev/shm:/dev/shm
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
@@ -38,14 +35,3 @@ services:
     # Default model launch
     command: >
       bash -c "source /opt/venv/bin/activate && vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --tensor-parallel-size 1"
-
-  # Alternative: CPU-only mode (for testing without GPU)
-  vllm-gfx1151-cpu:
-    image: vllm-gfx1151-dev:latest
-    container_name: vllm-strix-halo-cpu
-    volumes:
-      - ./models:/workspace/models:ro
-    ports:
-      - "8080:8080"
-    command: >
-      bash -c "source /opt/venv/bin/activate && python -c 'import vllm; print(f\"vLLM {vllm.__version__}\")'"
