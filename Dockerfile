@@ -1,104 +1,172 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Stage 1: Builder - Build vLLM and AITER wheels
+# Stage 1: dev-base - Install build tools, ROCm SDK, build all packages
 # =============================================================================
 
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:24.04 AS dev-base
 
 LABEL maintainer="ken@epenguin.com" \
-      description="vLLM and AITER wheels builder for AMD gfx1151"
+      description="vLLM builder for AMD gfx1151 - builds AITER, Flash Attention, vLLM"
 
-# Install basic dependencies
+# Set consistent environment variables
+ENV WORK_DIR=/workspace \
+    VENV_DIR=/opt/venv \
+    ROCM_HOME=/opt/rocm \
+    SUDO="" \
+    SKIP_VERIFICATION=true \
+    NOGPU=true \
+    GPU_TARGET=gfx1151 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies for build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     ninja-build \
     git \
-    python3.12 \
-    python3.12-venv \
     wget \
     curl \
     ca-certificates \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    software-properties-common \
+    google-perftools \
+    libgoogle-perftools-dev \
+    libgfortran5 \
+    libatomic1 \
+    libgomp1 \
+    gcc \
+    make \
+    libc6-dev \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
+# Create workspace and venv directories
+RUN mkdir -p ${WORK_DIR} ${VENV_DIR}
 
-# Copy entire project to workspace
+# Set working directory
+WORKDIR ${WORK_DIR}
+
+# Copy build scripts
 COPY . /workspace/
 
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
 
-# Run build scripts sequentially
-# Note: Running as root, so SUDO="" (no sudo needed)
-ENV SUDO="" SKIP_VERIFICATION=true
+# Run build tools installation
+RUN echo "==========================================" \
+  && echo "[Stage 1/4] Installing build tools..." \
+  && echo "==========================================" \
+  && /workspace/01-install-tools.sh
 
-# 01: Install system tools and create venv
-RUN /workspace/01-install-tools.sh
-
-# 02: Install ROCm and PyTorch (nightly packages)
-RUN /workspace/02-install-rocm.sh
-
-# 03: Build AITER wheel (optional, but vLLM won't use on gfx1151)
-RUN /workspace/03-build-aiter.sh
-
-# 04: Build vLLM wheel
-RUN /workspace/04-build-vllm.sh
-
-# Set output path for easy access
-ENV WHEELS_DIR=/workspace/wheels
+# Run ROCm SDK installation
+RUN echo "==========================================" \
+  && echo "[Stage 1/4] Installing ROCm and PyTorch..." \
+  && echo "==========================================" \
+  && /workspace/02-install-rocm.sh
 
 # =============================================================================
-# Stage 2: Runtime - Create minimal runtime environment with vLLM and AITER
+# Stage 2: build-aiter - Build AITER
 # =============================================================================
 
-FROM ubuntu:24.04 AS runtime
+FROM dev-base AS build-aiter
+
+LABEL description="Build stage for AITER"
+
+RUN echo "==========================================" \
+  && echo "[Stage 2/4] Building AITER..." \
+  && echo "==========================================" \
+  && /workspace/03-build-aiter.sh || echo "WARNING: AITER build failed"
+
+# =============================================================================
+# Stage 3: build-fa - Build Flash Attention
+# =============================================================================
+
+FROM build-aiter AS build-fa
+
+LABEL description="Build stage for Flash Attention"
+
+RUN echo "==========================================" \
+  && echo "[Stage 3/4] Building Flash Attention..." \
+  && echo "==========================================" \
+  && /workspace/04-build-fa.sh || echo "WARNING: Flash Attention build failed"
+
+# =============================================================================
+# Stage 4: build-vllm - Build vLLM
+# =============================================================================
+
+FROM build-fa AS build-vllm
+
+LABEL description="Build stage for vLLM"
+
+RUN echo "==========================================" \
+  && echo "[Stage 4/4] Building vLLM..." \
+  && echo "==========================================" \
+  && /workspace/05-build-vllm.sh || echo "WARNING: vLLM build failed"
+
+# =============================================================================
+# Stage 5: release - Minimal runtime image
+# =============================================================================
+
+FROM ubuntu:24.04 AS release
 
 LABEL maintainer="ken@epenguin.com" \
       description="vLLM runtime for AMD gfx1151"
 
-# Install minimal runtime dependencies
+# Install Python and runtime dependencies from Ubuntu repo
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
+    python3.12-dev \
     curl \
     ca-certificates \
     google-perftools \
+    libatomic1 \
+    libgomp1 \
+    gcc \
+    make \
+    libc6-dev \
  && rm -rf /var/lib/apt/lists/*
 
+# Set working directory
 WORKDIR /workspace
 
-# Copy wheels from builder
-COPY --from=builder /workspace/wheels/*.whl /tmp/
+# Set environment variables
+ENV VENV_DIR=/opt/venv \
+    ROCM_HOME=/opt/rocm \
+    HSA_OVERRIDE_GFX_VERSION=11.5.1 \
+    VLLM_TARGET_DEVICE=rocm \
+    FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE \
+    PATH="/opt/venv/bin:/opt/rocm/bin:${PATH}" \
+    LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
-# Create virtual environment and install wheels
-RUN python3.12 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir /tmp/*.whl && \
-    rm /tmp/*.whl
+# Copy venv from build stage
+COPY --from=build-vllm /opt/venv /opt/venv
 
-# Configure TCMalloc system-wide
-RUN TCMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" && \
-    if [ -f "$TCMALLOC_PATH" ]; then \
-        echo "$TCMALLOC_PATH" | tee /etc/ld.so.preload > /dev/null && \
-        echo "TCMalloc configured: $(cat /etc/ld.so.preload)"; \
-    else \
-        echo "WARNING: TCMalloc not found"; \
-    fi
+# Create /opt/rocm symlink to _rocm_sdk_devel
+RUN ln -sf /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel /opt/rocm
 
-# Set environment for vLLM
-ENV PATH="/opt/venv/bin:${PATH}" \
-    PYTHONPATH="/opt/venv/lib/python3.12/site-packages" \
-    HSA_OVERRIDE_GFX_VERSION="11.5.1" \
-    VLLM_TARGET_DEVICE="rocm"
+# Create ld.so.conf for ROCm libraries
+RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm-sdk.conf \
+  && ldconfig
 
-# Verify installation
-RUN /opt/venv/bin/python -c "import vllm; print(f'vLLM version: {vllm.__version__}')" && \
-    pip list | grep -E "(vllm|amd-aiter)"
+# Fix missing gfx1151 library symlinks
+RUN if [ -d "/opt/venv/lib/python3.12/site-packages/_rocm_sdk_libraries_gfx1151/lib" ]; then \
+    ln -sf ../../_rocm_sdk_libraries_gfx1151/lib/libhipfftw.so /opt/rocm/lib/libhipfftw.so.0 \
+    && ln -sf ../../_rocm_sdk_libraries_gfx1151/lib/libhipfftw.so /opt/rocm/lib/libhipfftw.so.0.1 \
+    && echo "✓ Fixed missing ROCm library symlinks in /opt/rocm/lib" \
+  else \
+    echo "✗ Warning: _rocm_sdk_libraries_gfx1151 directory not found" \
+  fi
 
-# Expose default port for vLLM API server
-EXPOSE 8080
+# Set working directory for vLLM
+WORKDIR /workspace
 
-# Default command - show help or start server
-CMD ["/opt/venv/bin/vllm", "--help"]
+# Default command
+CMD ["/bin/bash"]

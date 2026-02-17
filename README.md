@@ -213,43 +213,75 @@ docker run --gpus all -p 8080:8080 vllm-rocm:runtime \
 - Separates build and runtime concerns
 - Can build wheels on one machine, deploy on another
 
-### Main Dockerfile (Multi-stage Build & Runtime)
+### Dockerfile (Multi-stage Build & Runtime)
 
-The main `Dockerfile` provides both builder and runtime stages in a single build:
+The new `Dockerfile` provides a complete multi-stage build with all components:
+
+**Build Stages:**
+1. **dev-base** - Installs build tools, ROCm SDK, PyTorch
+2. **build-aiter** - Builds AITER for gfx1151
+3. **build-fa** - Builds Flash Attention for gfx1151
+4. **build-vllm** - Builds vLLM for gfx1151
+5. **release** - Minimal runtime image with all three packages
 
 ```bash
-# Build runtime image with vLLM and AITER pre-installed
-docker build -t vllm-gfx1151-runtime .
+# Build complete image
+docker build -f Dockerfile -t vllm-gfx1151-runtime .
 
-# Run vLLM server
-docker run --gpus all -p 8080:8080 vllm-gfx1151-runtime \
-    vllm serve Qwen/Qwen2.5-0.5B-Instruct \
-    --host 0.0.0.0 \
-    --port 8080 \
-    --enforce-eager
+# Or build specific stages
+docker build -f Dockerfile --target dev-base -t dev-base .
+docker build -f Dockerfile --target build-aiter -t build-aiter .
+docker build -f Dockerfile --target build-fa -t build-fa .
+docker build -f Dockerfile --target build-vllm -t build-vllm .
 ```
 
- **What this does:**
- - **Stage 1 (Builder):** Same as Dockerfile.builder - builds both wheels
- - **Stage 2 (Runtime):** Minimal Ubuntu 24.04 with:
-   - Python 3.12 venv at `/opt/venv`
-   - vLLM and AITER wheels installed
-   - TCMalloc preloading configured
-   - PATH set to `/opt/venv/bin`
-   - ROCm environment variables set for gfx1151
-   - Flash Attention AMD Triton backend enabled
-   - gcc/make for Triton JIT compilation
+**What it does:**
+- **Stages 1-4 (Builder):**
+  - Installs all build tools (gcc, make, libc6-dev, etc.)
+  - Installs ROCm 7.11.0+ and PyTorch 2.11.0+ from nightly packages
+  - Runs scripts 01-05 sequentially in NOGPU=true mode
+  - Builds all three wheels into `/opt/venv`
+  - Fixes missing ROCm library symlinks for gfx1151
 
- **Runtime Environment Variables:**
- - `HSA_OVERRIDE_GFX_VERSION="11.5.1"` - GPU version override for Strix Halo
- - `VLLM_TARGET_DEVICE="rocm"` - Target device for vLLM
- - `FLASH_ATTENTION_TRITON_AMD_ENABLE="TRUE"` - Enable AMD Triton backend for Flash Attention
+- **Stage 5 (Release):**
+  - Installs Python runtime packages from Ubuntu repo
+  - Copies complete `/opt/venv` directory from builder
+  - Creates `/opt/rocm` symlink to `_rocm_sdk_devel`
+  - Sets up `/etc/ld.so.conf.d/rocm-sdk.conf`
+  - Fixes missing gfx1151 library symlinks in `/opt/rocm/lib`
+  - Configures PATH and LD_LIBRARY_PATH environment variables
 
- **Advantages:**
- - Single build command produces runnable image
- - Runtime image includes necessary build tools for Triton JIT
- - Ready-to-run with GPU access required
- - Properly configured for AMD ROCm and Flash Attention
+**Runtime Environment Variables:**
+- `HSA_OVERRIDE_GFX_VERSION="11.5.1"` - GPU version override for Strix Halo
+- `VLLM_TARGET_DEVICE="rocm"` - Target device for vLLM
+- `FLASH_ATTENTION_TRITON_AMD_ENABLE="TRUE"` - Enable AMD Triton backend for Flash Attention
+- `PATH="/opt/venv/bin:/opt/rocm/bin:${PATH}" - Python and ROCm binaries
+- `LD_LIBRARY_PATH="/opt/rocm/lib:${LD_LIBRARY_PATH:-}"` - ROCm library path
+
+**Advantages:**
+- Single build command produces runnable image
+- All three packages (AITER, Flash Attention, vLLM) pre-installed
+- JIT compilation runtime dependencies included (gcc, make, libc6-dev)
+- Properly configured for AMD gfx1151 GPU
+- Ready to run with GPU access
+- Can be built in CPU-only environment (`NOGPU=true`)
+
+**Docker Compose:**
+
+Use `docker-compose.yml` for easy deployment:
+
+```bash
+# Build and run with GPU
+docker-compose up vllm-gfx1151-runtime
+
+# Or CPU-only mode (for testing)
+docker-compose up vllm-gfx1151-cpu
+
+# Build only
+docker-compose build vllm-gfx1151-runtime
+```
+
+
 
 ## Scripts
 
