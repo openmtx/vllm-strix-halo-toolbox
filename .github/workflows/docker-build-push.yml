@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: vllm-strix-halo-toolbox
+  IMAGE_NAME: vllm-rocm-dev-gfx1151
 
 jobs:
   build-and-push:
