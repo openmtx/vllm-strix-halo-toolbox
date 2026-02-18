@@ -28,6 +28,7 @@ services:
       - HSA_XNACK=1                    # Essential for unified memory page migration
       - ROC_ENABLE_PRE_VEGA=1          # Helps HIP correctly probe APU memory topologies
       - OMP_NUM_THREADS=32            # Number of CPU cores for OpenMP parallelization
+      - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
     volumes:
       - ./cache/huggingface:/root/.cache/huggingface
       - /dev/shm:/dev/shm
