@@ -79,8 +79,3 @@ else
     echo "  ❌ Flash Attention: Installation failed"
     exit 1
 fi
-echo ""
-echo "To proceed with vLLM:"
-echo "  distrobox enter ${TOOLBOX_NAME:-restart}"
-echo "  source ${VENV_DIR}/bin/activate"
-echo "  ./03-build-vllm.sh"

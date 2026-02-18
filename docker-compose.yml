@@ -4,9 +4,9 @@
 services:
   # Build and run vLLM service
   vllm:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    #build:
+    #  context: .
+    #  dockerfile: Dockerfile
     image: openmtx/vllm-rocm-dev-gfx1151:latest
     container_name: vllm-rocm-dev-gfx1151
     privileged: true

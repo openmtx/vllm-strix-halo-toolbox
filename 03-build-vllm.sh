@@ -159,10 +159,9 @@ echo "[03f] Building and installing vLLM using setup.py develop..."
 echo "  Using CMAKE_ARGS: ${CMAKE_ARGS:-not set}"
 echo "  Torch_DIR: ${Torch_DIR:-not set}"
 
-# Build vLLM in editable mode using setup.py develop
-# This properly handles ROCm-specific sources
-#python3 setup.py develop
-pip install --no-build-isolation -e .
+# Build vLLM using regular install (NOT editable) so it works in release image
+# Editable install would require copying source code to release stage
+pip install --no-build-isolation .
 
 echo ""
 echo "[03] vLLM build and installation complete!"
