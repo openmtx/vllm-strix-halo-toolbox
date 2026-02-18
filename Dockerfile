@@ -8,7 +8,7 @@
 
 FROM ubuntu:24.04 AS dev-base
 
-LABEL maintainer="OpenMTX" \
+LABEL maintainer="ken@epengui.com" \
       description="vLLM builder for AMD gfx1151 - builds vLLM, AITER, Flash Attention"
 
 # Set environment variables
@@ -21,33 +21,6 @@ ENV WORK_DIR=/workspace \
     GPU_TARGET=gfx1151 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies for build tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    wget \
-    curl \
-    ca-certificates \
-    python3.12 \
-    python3.12-venv \
-    python3.12-dev \
-    python3-pip \
-    pkg-config \
-    libssl-dev \
-    libffi-dev \
-    software-properties-common \
-    google-perftools \
-    libgoogle-perftools-dev \
-    libgfortran5 \
-    libatomic1 \
-    libgomp1 \
-    gcc \
-    make \
-    libc6-dev \
- && rm -rf /var/lib/apt/lists/*
-
 # Create workspace and venv directories
 RUN mkdir -p ${WORK_DIR} ${VENV_DIR}
 
@@ -55,7 +28,7 @@ RUN mkdir -p ${WORK_DIR} ${VENV_DIR}
 WORKDIR ${WORK_DIR}
 
 # Copy build scripts
-COPY 01-install-tools.sh 02-install-rocm.sh /workspace/
+COPY . /workspace/.
 
 # Make scripts executable
 RUN chmod +x /workspace/*.sh
@@ -73,50 +46,22 @@ RUN echo "==========================================" \
   && /workspace/02-install-rocm.sh
 
 # =============================================================================
-# Stage 2: build-vllm - Build vLLM without FA support
+# Stage 2: builder - Build vLLM without FA support, then AITER and FA
 # =============================================================================
 
-FROM dev-base AS build-vllm
+FROM dev-base AS builder
 
-LABEL description="Build stage for vLLM (without FA support)"
-
-# Copy vLLM build script (refactored as step 03)
-COPY 03-build-vllm.sh /workspace/
-RUN chmod +x /workspace/03-build-vllm.sh
+LABEL description="Build stage for vLLM, AITER and FA"
 
 RUN echo "==========================================" \
   && echo "[Stage 3/5] Building vLLM without FA support..." \
   && echo "==========================================" \
   && /workspace/03-build-vllm.sh
 
-# =============================================================================
-# Stage 3: build-aiter - Build AMD AITER
-# =============================================================================
-
-FROM build-vllm AS build-aiter
-
-LABEL description="Build stage for AMD AITER"
-
-# Copy AITER build script (refactored as step 04)
-COPY 04-build-aiter.sh /workspace/
-RUN chmod +x /workspace/04-build-aiter.sh
-
 RUN echo "==========================================" \
   && echo "[Stage 4/5] Building AMD AITER..." \
   && echo "==========================================" \
   && /workspace/04-build-aiter.sh || echo "AITER: Built with warnings (expected for CPU-only)"
-
-# =============================================================================
-# Stage 4: build-fa - Build Flash Attention for ROCm
-# =============================================================================
-
-FROM build-aiter AS build-fa
-
-LABEL description="Build stage for Flash Attention (ROCm Triton AMD)"
-
-# Copy Flash Attention build script (refactored as step 05)
-COPY 05-build-fa.sh /workspace/
-RUN chmod +x /workspace/05-build-fa.sh
 
 RUN echo "==========================================" \
   && echo "[Stage 5/5] Building Flash Attention for ROCm..." \
@@ -131,7 +76,7 @@ FROM ubuntu:24.04 AS release
 
 LABEL description="vLLM runtime for AMD Strix Halo (gfx1151) - includes vLLM, AITER, Flash Attention"
 LABEL version="1.0"
-LABEL maintainer="OpenMTX"
+LABEL maintainer="ken@epenguin.com"
 
 # Install runtime dependencies only
 ENV DEBIAN_FRONTEND=noninteractive
@@ -164,7 +109,7 @@ ENV VENV_DIR=/opt/venv \
     LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
 
 # Copy virtual environment from build stage (contains Python, PyTorch, ROCm, vLLM, AITER, FA)
-COPY --from=build-fa /opt/venv /opt/venv
+COPY --from=builder /opt/venv /opt/venv
 
 # Create ROCm symlink to maintain compatibility
 RUN ln -sf /opt/venv/lib/python3.12/site-packages/_rocm_sdk_devel /opt/rocm
@@ -177,7 +122,3 @@ RUN echo "/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4" > /etc/ld.so.preload
 
 # Default command
 CMD ["/bin/bash"]
-
-# Health check for container orchestration
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD bash -c "source /opt/venv/bin/activate && python3 -c 'import vllm; print(\"vLLM ready for gfx1151\")'" || exit 1

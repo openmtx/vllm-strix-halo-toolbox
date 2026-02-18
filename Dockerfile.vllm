@@ -1,0 +1,27 @@
+FROM vllm-base:latest
+
+WORKDIR /workspace
+
+# Copy the vLLM build script
+COPY 05-build-vllm.sh /workspace/
+RUN chmod +x /workspace/05-build-vllm.sh
+
+# Run the vLLM build script
+# The script will:
+# - Activate /opt/venv
+# - Clone vllm to /workspace/vllm
+# - Install dependencies from requirements/rocm.txt
+# - Build and install vllm for ROCm (cross-compilation without GPU hardware)
+# Note: NOGPU from base image is overridden by the script logic for ROCm builds
+RUN /workspace/05-build-vllm.sh
+
+# Set up environment for runtime
+ENV PATH="/opt/venv/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:/opt/rocm/lib:${LD_LIBRARY_PATH:-}"
+ENV ROCM_PATH="/opt/rocm"
+ENV HSA_OVERRIDE_GFX_VERSION=11.5.1
+ENV PYTORCH_ROCM_ARCH=gfx1151
+ENV GPU_ARCHS=gfx1151
+
+# Default command
+CMD ["/bin/bash"]

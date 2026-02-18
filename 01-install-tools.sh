@@ -59,6 +59,7 @@ ${SUDO} apt-get install --no-install-recommends -y \
     libgfortran5 \
     libatomic1 \
     libgomp1
+${SUDO} rm -rf /var/lib/apt/lists/*
 
 # Verify installations
 echo "Verifying installations..."

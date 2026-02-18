@@ -1,10 +1,12 @@
-version: '3.8'
+# Minimal docker-compose for building and running vLLM with ROCm gfx1151
+# Removes version declaration for docker compose plugin compatibility
 
 services:
-  vllm-full:
+  # Build and run vLLM service
+  vllm:
     build:
       context: .
-      dockerfile: Dockerfile.full
+      dockerfile: Dockerfile
     image: openmtx/vllm-rocm-dev-gfx1151:latest
     container_name: vllm-rocm-dev-gfx1151
     privileged: true
@@ -12,7 +14,6 @@ services:
       - SYS_PTRACE
     security_opt:
       - seccomp:unconfined
-    # Crucial for ROCm/APU access
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
@@ -25,49 +26,15 @@ services:
       - VLLM_ATTENTION_BACKEND=triton
       - HSA_OVERRIDE_GFX_VERSION=11.5.1
       - VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
-      - HSA_XNACK=1                    # Essential for unified memory page migration
-      - ROC_ENABLE_PRE_VEGA=1          # Helps HIP correctly probe APU memory topologies
-      - OMP_NUM_THREADS=32            # Number of CPU cores for OpenMP parallelization
+      - HSA_XNACK=1
+      - ROC_ENABLE_PRE_VEGA=1
+      - OMP_NUM_THREADS=32
       - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
     volumes:
       - ./cache/huggingface:/root/.cache/huggingface
       - /dev/shm:/dev/shm
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    # Default model launch
     command: >
-      bash -c "source /opt/venv/bin/activate && vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --tensor-parallel-size 1"
-
-  # Test service for quick verification
-  test-vllm:
-    build:
-      context: .
-      dockerfile: Dockerfile.full
-    image: openmtx/vllm-rocm-dev-gfx1151:latest
-    container_name: vllm-test
-    privileged: true
-    cap_add:
-      - SYS_PTRACE
-    security_opt:
-      - seccomp:unconfined
-    devices:
-      - /dev/kfd:/dev/kfd
-      - /dev/dri:/dev/dri
-    group_add:
-      - video
-    environment:
-      - VLLM_TARGET_DEVICE=rocm
-      - HSA_OVERRIDE_GFX_VERSION=11.5.1
-      - VLLM_LOGGING_LEVEL=INFO
-    volumes:
-      - ./cache/huggingface:/root/.cache/huggingface
-    command: >
-      bash -c "source /opt/venv/bin/activate && 
-               python3 -c 'import vllm; print(\"vLLM import successful\")' &&
-               python3 -c 'import torch; print(\"PyTorch version:\", torch.__version__)' &&
-               echo \"Testing vLLM with small model...\" &&
-               timeout 30 vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --max-model-len 128 || echo \"Test completed\""
+      vllm serve Qwen/Qwen2.5-0.5B-Instruct
+      --host 0.0.0.0
+      --port 8080
+      --tensor-parallel-size 1
