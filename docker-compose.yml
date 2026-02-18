@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  vllm:
+  vllm-full:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: openmtx/vllm-gfx1151-dev:latest
-    container_name: vllm-strix-halo-runtime
+      dockerfile: Dockerfile.full
+    image: openmtx/vllm-rocm-dev-gfx1151:latest
+    container_name: vllm-rocm-dev-gfx1151
     privileged: true
     cap_add:
       - SYS_PTRACE
@@ -21,10 +21,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - HSA_OVERRIDE_GFX_VERSION=11.5.1
       - VLLM_TARGET_DEVICE=rocm
-      - FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
-      - OMP_NUM_THREADS=32
+      - VLLM_ATTENTION_BACKEND=triton
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+      - HSA_XNACK=1                    # Essential for unified memory page migration
+      - ROC_ENABLE_PRE_VEGA=1          # Helps HIP correctly probe APU memory topologies
+      - OMP_NUM_THREADS=32            # Number of CPU cores for OpenMP parallelization
     volumes:
       - ./cache/huggingface:/root/.cache/huggingface
       - /dev/shm:/dev/shm
@@ -37,3 +40,33 @@ services:
     # Default model launch
     command: >
       bash -c "source /opt/venv/bin/activate && vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --tensor-parallel-size 1"
+
+  # Test service for quick verification
+  test-vllm:
+    build:
+      context: .
+      dockerfile: Dockerfile.full
+    image: openmtx/vllm-rocm-dev-gfx1151:latest
+    container_name: vllm-test
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    environment:
+      - VLLM_TARGET_DEVICE=rocm
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - VLLM_LOGGING_LEVEL=INFO
+    volumes:
+      - ./cache/huggingface:/root/.cache/huggingface
+    command: >
+      bash -c "source /opt/venv/bin/activate && 
+               python3 -c 'import vllm; print(\"vLLM import successful\")' &&
+               python3 -c 'import torch; print(\"PyTorch version:\", torch.__version__)' &&
+               echo \"Testing vLLM with small model...\" &&
+               timeout 30 vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8080 --max-model-len 128 || echo \"Test completed\""

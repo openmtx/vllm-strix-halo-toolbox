@@ -1,0 +1,34 @@
+FROM vllm-base:latest
+
+WORKDIR /workspace
+
+# Copy all build scripts in order
+COPY 03-build-vllm.sh /workspace/
+COPY 04-build-aiter.sh /workspace/
+COPY 05-build-fa.sh /workspace/
+
+RUN chmod +x /workspace/*.sh
+
+# Step 03: Build vLLM without FA support
+RUN echo "=== Step 03: Building vLLM ===" && \
+    /workspace/03-build-vllm.sh
+
+# Step 04: Build AMD AITER
+RUN echo "=== Step 04: Building AITER ===" && \
+    /workspace/04-build-aiter.sh
+
+# Step 05: Build Flash Attention for ROCm
+RUN echo "=== Step 05: Building Flash Attention ===" && \
+    /workspace/05-build-fa.sh
+
+# Set up environment for runtime
+ENV PATH="/opt/venv/bin:${PATH}" \
+    LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:/opt/rocm/lib:${LD_LIBRARY_PATH:-}" \
+    ROCM_PATH="/opt/rocm" \
+    HSA_OVERRIDE_GFX_VERSION=11.5.1 \
+    PYTORCH_ROCM_ARCH=gfx1151 \
+    GPU_ARCHS=gfx1151 \
+    VLLM_TARGET_DEVICE=rocm
+
+# Default command
+CMD ["/bin/bash"]
